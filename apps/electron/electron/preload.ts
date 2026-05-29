@@ -30,4 +30,16 @@ contextBridge.exposeInMainWorld('zoomguru', {
 
   clearCV: (): Promise<void> =>
     ipcRenderer.invoke('cv:clear'),
+
+  getSystemAudioSourceId: (): Promise<string> =>
+    ipcRenderer.invoke('capture:audio-source-id'),
+
+  saveJD: (text: string): Promise<void> =>
+    ipcRenderer.invoke('jd:save', text),
+
+  loadJD: (): Promise<string | null> =>
+    ipcRenderer.invoke('jd:load'),
+
+  clearJD: (): Promise<void> =>
+    ipcRenderer.invoke('jd:clear'),
 });

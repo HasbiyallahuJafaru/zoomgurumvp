@@ -36,6 +36,7 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [micGranted, setMicGranted] = useState(true);
   const [cvText, setCvText] = useState('');
+  const [jdText, setJdText] = useState('');
   const [questionCount, setQuestionCount] = useState(0);
   const [isAutoMode, setIsAutoMode] = useState(false);
   const [isAutoListening, setIsAutoListening] = useState(false);
@@ -86,6 +87,7 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
         body: JSON.stringify({
           transcript,
           ...(cvText ? { cvText } : {}),
+          ...(jdText ? { jdText } : {}),
         }),
       });
       if (response.status === 401) { onLogout(); return; }
@@ -136,6 +138,7 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
         body: JSON.stringify({
           image: imageBase64,
           ...(cvText ? { cvText } : {}),
+          ...(jdText ? { jdText } : {}),
         }),
       });
       if (response.status === 401) { onLogout(); return; }
@@ -274,7 +277,20 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
 
     let stream: MediaStream;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Use Electron's desktopCapturer source ID to grab system audio (WASAPI
+      // loopback on Windows) without any OS picker dialog. Video is required
+      // by the underlying Chrome capture pipeline but discarded immediately.
+      const sourceId = await window.zoomguru.getSystemAudioSourceId();
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          // chromeMediaSource is an Electron/Chrome extension not in DOM types
+          mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: sourceId },
+        } as unknown as MediaTrackConstraints,
+        video: {
+          mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: sourceId },
+        } as unknown as MediaTrackConstraints,
+      });
+      stream.getVideoTracks().forEach((t) => t.stop());
     } catch {
       setMicGranted(false);
       return;
@@ -442,6 +458,10 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
 
     void window.zoomguru.loadCV().then((stored) => {
       if (stored) setCvText(stored.text);
+    });
+
+    void window.zoomguru.loadJD().then((stored) => {
+      if (stored) setJdText(stored);
     });
 
     void window.zoomguru.requestMicPermission().then((osGranted) => {

@@ -9,6 +9,7 @@ import {
   session,
   systemPreferences,
   dialog,
+  desktopCapturer,
 } from 'electron';
 import path from 'path';
 import fs from 'fs';
@@ -22,6 +23,7 @@ interface WindowStore {
   windowY: number;
   cvText?: string;
   cvFilename?: string;
+  jdText?: string;
 }
 
 let mainWindow: BrowserWindow | null = null;
@@ -258,6 +260,24 @@ if (!gotLock) {
     ipcMain.handle('cv:clear', () => {
       store.delete('cvText');
       store.delete('cvFilename');
+    });
+
+    ipcMain.handle('capture:audio-source-id', async () => {
+      const sources = await desktopCapturer.getSources({ types: ['screen'] });
+      return sources[0]?.id ?? '';
+    });
+
+    ipcMain.handle('jd:save', (_event, text: string) => {
+      store.set('jdText', text);
+    });
+
+    ipcMain.handle('jd:load', () => {
+      const text = store.get('jdText', '');
+      return text || null;
+    });
+
+    ipcMain.handle('jd:clear', () => {
+      store.delete('jdText');
     });
   }
 

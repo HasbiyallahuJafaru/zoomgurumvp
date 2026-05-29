@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react';
+import { useState, useEffect, type CSSProperties } from 'react';
 
 interface CvSetupProps {
   onDone: () => void;
@@ -10,7 +10,17 @@ const SERIF = "'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif";
 export default function CvSetup({ onDone }: CvSetupProps) {
   const [uploading, setUploading] = useState(false);
   const [filename, setFilename] = useState('');
+  const [jdText, setJdText] = useState('');
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    void window.zoomguru.loadCV().then((stored) => {
+      if (stored) setFilename(stored.filename);
+    });
+    void window.zoomguru.loadJD().then((stored) => {
+      if (stored) setJdText(stored);
+    });
+  }, []);
 
   async function handleUpload(): Promise<void> {
     setError('');
@@ -25,8 +35,12 @@ export default function CvSetup({ onDone }: CvSetupProps) {
     }
   }
 
-  async function handleSkip(): Promise<void> {
-    await window.zoomguru.clearCV();
+  async function handleContinue(): Promise<void> {
+    if (jdText.trim()) {
+      await window.zoomguru.saveJD(jdText.trim());
+    } else {
+      await window.zoomguru.clearJD();
+    }
     onDone();
   }
 
@@ -37,6 +51,7 @@ export default function CvSetup({ onDone }: CvSetupProps) {
         .zg-primary:active:not(:disabled) { transform: scale(0.98); }
         .zg-ghost:hover { color: rgba(255,255,255,0.45) !important; }
         .zg-close:hover { color: rgba(255,255,255,0.50) !important; }
+        .zg-jd:focus { outline: none; border-color: rgba(255,255,255,0.18) !important; }
       `}</style>
 
       <div style={s.root}>
@@ -48,43 +63,66 @@ export default function CvSetup({ onDone }: CvSetupProps) {
         <div style={s.content}>
           <div style={s.brand}>
             <span style={s.step}>2 of 2</span>
-            <span style={s.title}>Upload your CV</span>
+            <span style={s.title}>Your Context</span>
             <span style={s.subtitle}>
-              We'll tailor every answer to your background.
+              Tailor every answer to your background and role.
             </span>
           </div>
 
-          {filename && (
-            <div style={s.fileRow}>
-              <span style={s.fileCheck}>✓</span>
-              <span style={s.fileName}>{filename}</span>
-            </div>
-          )}
-
-          {error && <p style={s.error}>{error}</p>}
-
-          <div style={s.actions}>
+          {/* CV section */}
+          <div style={s.section}>
+            <span style={s.sectionLabel}>CV / Resume</span>
             {filename ? (
-              <button className="zg-primary" style={s.primaryBtn} onClick={onDone}>
-                Continue →
-              </button>
+              <div style={s.fileRow}>
+                <span style={s.fileCheck}>✓</span>
+                <span style={s.fileName}>{filename}</span>
+                <button
+                  className="zg-ghost"
+                  style={s.changeBtn}
+                  onClick={() => { void handleUpload(); }}
+                  disabled={uploading}
+                >
+                  Change
+                </button>
+              </div>
             ) : (
               <button
                 className="zg-primary"
-                style={{ ...s.primaryBtn, ...(uploading ? s.disabledBtn : {}) }}
+                style={{ ...s.outlineBtn, ...(uploading ? s.disabledBtn : {}) }}
                 onClick={() => { void handleUpload(); }}
                 disabled={uploading}
               >
                 {uploading ? 'Opening…' : 'Choose File'}
               </button>
             )}
+          </div>
 
-            {!filename && (
-              <button className="zg-ghost" style={s.ghostBtn}
-                onClick={() => { void handleSkip(); }}>
-                Skip for now
-              </button>
-            )}
+          {/* Job description section */}
+          <div style={s.section}>
+            <span style={s.sectionLabel}>Job Description</span>
+            <textarea
+              className="zg-jd"
+              style={s.textarea}
+              placeholder="Paste the job description here…"
+              value={jdText}
+              onChange={(e) => setJdText(e.target.value)}
+              rows={5}
+            />
+          </div>
+
+          {error && <p style={s.error}>{error}</p>}
+
+          <div style={s.actions}>
+            <button className="zg-primary" style={s.primaryBtn} onClick={() => { void handleContinue(); }}>
+              Continue →
+            </button>
+            <button className="zg-ghost" style={s.ghostBtn} onClick={() => {
+              void window.zoomguru.clearCV();
+              void window.zoomguru.clearJD();
+              onDone();
+            }}>
+              Skip for now
+            </button>
           </div>
         </div>
       </div>
@@ -124,14 +162,15 @@ const s: Record<string, CSSProperties> = {
     maxWidth: '290px',
     display: 'flex',
     flexDirection: 'column',
-    alignItems: 'center',
-    gap: '28px',
+    alignItems: 'stretch',
+    gap: '20px',
   },
   brand: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     gap: '8px',
+    marginBottom: '4px',
   },
   step: {
     fontSize: '9px',
@@ -158,28 +197,80 @@ const s: Record<string, CSSProperties> = {
     fontFamily: SANS,
     textAlign: 'center',
   },
+  section: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+  },
+  sectionLabel: {
+    fontSize: '9px',
+    fontWeight: 700,
+    letterSpacing: '0.7px',
+    color: 'rgba(255,255,255,0.22)',
+    textTransform: 'uppercase',
+    fontFamily: SANS,
+  },
   fileRow: {
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'center',
     gap: '8px',
-    borderBottom: '1px solid rgba(255,255,255,0.08)',
-    paddingBottom: '12px',
-    width: '100%',
+    padding: '8px 10px',
+    border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: '6px',
   },
   fileCheck: {
     fontSize: '12px',
     color: '#10b981',
     fontFamily: SANS,
+    flexShrink: 0,
   },
   fileName: {
-    fontSize: '12px',
+    fontSize: '11px',
     color: 'rgba(255,255,255,0.55)',
     fontFamily: SANS,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
-    maxWidth: '220px',
+    flex: 1,
+  },
+  changeBtn: {
+    background: 'transparent',
+    border: 'none',
+    color: 'rgba(255,255,255,0.25)',
+    fontSize: '10px',
+    cursor: 'pointer',
+    padding: '0',
+    fontFamily: SANS,
+    transition: 'color 120ms ease',
+    flexShrink: 0,
+  },
+  outlineBtn: {
+    width: '100%',
+    padding: '9px',
+    background: 'transparent',
+    border: '1px solid rgba(255,255,255,0.12)',
+    borderRadius: '6px',
+    color: 'rgba(255,255,255,0.60)',
+    fontSize: '12px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    fontFamily: SANS,
+    transition: 'opacity 120ms ease, transform 100ms ease',
+    textAlign: 'center',
+  },
+  textarea: {
+    width: '100%',
+    padding: '10px',
+    background: 'rgba(255,255,255,0.04)',
+    border: '1px solid rgba(255,255,255,0.09)',
+    borderRadius: '6px',
+    color: 'rgba(255,255,255,0.70)',
+    fontSize: '11px',
+    fontFamily: SANS,
+    lineHeight: 1.55,
+    resize: 'none',
+    boxSizing: 'border-box',
+    transition: 'border-color 120ms ease',
   },
   error: {
     margin: 0,
@@ -187,13 +278,6 @@ const s: Record<string, CSSProperties> = {
     color: '#f43f5e',
     fontFamily: SANS,
     textAlign: 'center',
-  },
-  actions: {
-    width: '100%',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: '8px',
   },
   primaryBtn: {
     width: '100%',
@@ -214,9 +298,15 @@ const s: Record<string, CSSProperties> = {
     background: 'rgba(255,255,255,0.20)',
     cursor: 'not-allowed',
   },
+  actions: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '6px',
+  },
   ghostBtn: {
     width: '100%',
-    padding: '10px',
+    padding: '8px',
     background: 'transparent',
     border: 'none',
     color: 'rgba(255,255,255,0.22)',
@@ -225,6 +315,6 @@ const s: Record<string, CSSProperties> = {
     fontFamily: SANS,
     transition: 'color 120ms ease',
     letterSpacing: '0.1px',
-    textAlign: 'center',
+    textAlign: 'center' as const,
   },
 };

@@ -17,6 +17,10 @@ interface ZoomGuruBridge {
   parseCV(): Promise<CvResult | CvError | null>;
   loadCV(): Promise<CvResult | null>;
   clearCV(): Promise<void>;
+  getSystemAudioSourceId(): Promise<string>;
+  saveJD(text: string): Promise<void>;
+  loadJD(): Promise<string | null>;
+  clearJD(): Promise<void>;
 }
 
 declare global {
