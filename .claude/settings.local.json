@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "PowerShell(npx claude --version 2>$null)",
+      "WebFetch(domain:api-docs.deepseek.com)"
+    ]
+  }
+}

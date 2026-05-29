@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Environment variables — never commit these
+.env
+.env.local
+.env.production
+
+# Build outputs
+dist/
+dist-electron/
+build/
+out/
+
+# Electron builder
+release/
+dist-release/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Editor
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*

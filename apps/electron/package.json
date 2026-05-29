@@ -1,0 +1,46 @@
+{
+  "name": "zoomguru",
+  "version": "1.0.0",
+  "description": "ZoomGuru — Your invisible AI interview copilot",
+  "author": "ZoomGuru <support@zoomguru.xyz>",
+  "private": true,
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "concurrently \"vite\" \"wait-on http://localhost:5173 file:dist-electron/main.js && electron .\"",
+    "build": "vite build",
+    "build:native": "cd native/wgc-exclude && npm install && npm run build:electron",
+    "clean": "taskkill /F /IM electron.exe /T 2>nul & taskkill /F /IM ZoomGuru.exe /T 2>nul & npx --yes rimraf dist-release release",
+    "dist:win": "npm run clean && npm run build:native && npm run build && cross-env NODE_TLS_REJECT_UNAUTHORIZED=0 CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win --config electron-builder.config.js",
+    "dist:mac": "npm run build && electron-builder --mac --config electron-builder.config.js",
+    "dist": "npm run clean && npm run build:native && npm run build && cross-env NODE_TLS_REJECT_UNAUTHORIZED=0 CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --win --config electron-builder.config.js",
+    "release:win": "npm run clean && npm run build:native && npm run build && cross-env NODE_TLS_REJECT_UNAUTHORIZED=0 CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win --publish always --config electron-builder.config.js",
+    "release:mac": "npm run build && electron-builder --mac --publish always --config electron-builder.config.js"
+  },
+  "dependencies": {
+    "electron-store": "^8.2.0",
+    "electron-updater": "^6.1.8",
+    "zustand": "^4.5.2"
+  },
+  "optionalDependencies": {
+    "wgc-exclude": "file:./native/wgc-exclude"
+  },
+  "devDependencies": {
+    "@rollup/rollup-win32-x64-msvc": "^4.60.4",
+    "@types/node": "^20.11.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "electron": "^42.1.0",
+    "electron-builder": "^26.8.1",
+    "esbuild": "^0.28.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "typescript": "^5.3.0",
+    "vite": "^5.4.19",
+    "vite-plugin-electron": "^0.28.0",
+    "vite-plugin-electron-renderer": "^0.14.5",
+    "wait-on": "^7.2.0"
+  }
+}
