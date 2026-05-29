@@ -4,7 +4,8 @@ import AnswerStream from './AnswerStream';
 type ElectronStyle = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-const FONT = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
+const FONT  = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
+const SERIF = "'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif";
 const SESSION_CAP = 40;
 const VAD_THRESHOLD = 0.015;
 const SILENCE_MS = 1500;
@@ -669,11 +670,12 @@ const s: Record<string, ElectronStyle> = {
     flexShrink: 0,
   },
   wordmark: {
-    fontSize: '12px',
-    fontWeight: 600,
-    color: 'rgba(255,255,255,0.72)',
-    letterSpacing: '-0.2px',
-    fontFamily: FONT,
+    fontSize: '15px',
+    fontWeight: 400,
+    fontStyle: 'italic',
+    color: 'rgba(255,255,255,0.80)',
+    letterSpacing: '0.1px',
+    fontFamily: SERIF,
   },
   headerRight: {
     display: 'flex',
