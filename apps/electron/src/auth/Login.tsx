@@ -12,7 +12,8 @@ interface LoginApiResponse {
 }
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-const FONT = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
+const SANS  = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
+const SERIF = "'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif";
 
 export default function Login({ onLogin, onShowRegister }: LoginProps) {
   const [identifier, setIdentifier] = useState('');
@@ -28,17 +29,11 @@ export default function Login({ onLogin, onShowRegister }: LoginProps) {
       const deviceId = await window.zoomguru.getDeviceId();
       const res = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Device-ID': deviceId,
-        },
+        headers: { 'Content-Type': 'application/json', 'X-Device-ID': deviceId },
         body: JSON.stringify({ email: identifier, password }),
       });
       const data: LoginApiResponse = await res.json();
-      if (!res.ok) {
-        setError(data.message ?? 'Invalid credentials');
-        return;
-      }
+      if (!res.ok) { setError(data.message ?? 'Invalid credentials'); return; }
       localStorage.setItem('access_token', data.accessToken ?? '');
       onLogin(data.user);
     } catch {
@@ -58,39 +53,24 @@ export default function Login({ onLogin, onShowRegister }: LoginProps) {
           border-bottom: 1px solid rgba(255,255,255,0.10);
           color: rgba(255,255,255,0.88);
           font-size: 13px;
-          font-family: ${FONT};
+          font-family: ${SANS};
           padding: 11px 0;
           outline: none;
+          text-align: center;
           transition: border-color 150ms ease;
           box-sizing: border-box;
         }
-        .zg-field:focus {
-          border-bottom-color: rgba(255,255,255,0.38);
-        }
-        .zg-field::placeholder {
-          color: rgba(255,255,255,0.20);
-        }
-        .zg-submit:hover:not(:disabled) {
-          background: rgba(255,255,255,1.0) !important;
-        }
-        .zg-submit:active:not(:disabled) {
-          transform: scale(0.98);
-        }
-        .zg-link:hover {
-          color: rgba(255,255,255,0.65) !important;
-        }
-        .zg-close:hover {
-          color: rgba(255,255,255,0.50) !important;
-        }
+        .zg-field:focus { border-bottom-color: rgba(255,255,255,0.38); }
+        .zg-field::placeholder { color: rgba(255,255,255,0.22); }
+        .zg-submit:hover:not(:disabled) { opacity: 0.90; }
+        .zg-submit:active:not(:disabled) { transform: scale(0.98); }
+        .zg-link:hover { color: rgba(255,255,255,0.65) !important; }
+        .zg-close:hover { color: rgba(255,255,255,0.50) !important; }
       `}</style>
 
       <div style={s.root}>
-        <button
-          className="zg-close"
-          style={s.closeBtn}
-          onClick={() => { void window.zoomguru.quitApp(); }}
-          aria-label="Close"
-        >
+        <button className="zg-close" style={s.closeBtn}
+          onClick={() => { void window.zoomguru.quitApp(); }} aria-label="Close">
           ×
         </button>
 
@@ -101,33 +81,17 @@ export default function Login({ onLogin, onShowRegister }: LoginProps) {
           </div>
 
           <form onSubmit={(e) => { void handleSubmit(e); }} style={s.form}>
-            <input
-              className="zg-field"
-              type="text"
-              placeholder="Email or username"
-              value={identifier}
-              onChange={(e) => setIdentifier(e.target.value)}
-              disabled={loading}
-              autoComplete="username"
-            />
-            <input
-              className="zg-field"
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={loading}
-              autoComplete="current-password"
-            />
+            <input className="zg-field" type="text" placeholder="Email or username"
+              value={identifier} onChange={(e) => setIdentifier(e.target.value)}
+              disabled={loading} autoComplete="username" />
+            <input className="zg-field" type="password" placeholder="Password"
+              value={password} onChange={(e) => setPassword(e.target.value)}
+              disabled={loading} autoComplete="current-password" />
 
             {error && <p style={s.error}>{error}</p>}
 
-            <button
-              className="zg-submit"
-              type="submit"
-              disabled={loading}
-              style={{ ...s.submitBtn, ...(loading ? s.submitDisabled : {}) }}
-            >
+            <button className="zg-submit" type="submit" disabled={loading}
+              style={{ ...s.submitBtn, ...(loading ? s.submitDisabled : {}) }}>
               {loading ? 'Signing in…' : 'Sign In'}
             </button>
           </form>
@@ -155,7 +119,7 @@ const s: Record<string, CSSProperties> = {
     borderRadius: '16px',
     position: 'relative',
     overflow: 'hidden',
-    fontFamily: FONT,
+    fontFamily: SANS,
   },
   closeBtn: {
     position: 'absolute',
@@ -169,43 +133,51 @@ const s: Record<string, CSSProperties> = {
     cursor: 'pointer',
     padding: '2px 4px',
     transition: 'color 120ms ease',
-    fontFamily: FONT,
+    fontFamily: SANS,
   },
   content: {
     width: '100%',
     maxWidth: '290px',
     display: 'flex',
     flexDirection: 'column',
+    alignItems: 'center',
     gap: '32px',
   },
   brand: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '5px',
+    alignItems: 'center',
+    gap: '7px',
   },
   brandName: {
-    fontSize: '18px',
-    fontWeight: 600,
-    color: 'rgba(255,255,255,0.90)',
-    letterSpacing: '-0.3px',
-    fontFamily: FONT,
+    fontSize: '28px',
+    fontWeight: 400,
+    fontStyle: 'italic',
+    fontFamily: SERIF,
+    color: 'rgba(255,255,255,0.92)',
+    letterSpacing: '0.2px',
+    textAlign: 'center',
   },
   brandTag: {
     fontSize: '11px',
     color: 'rgba(255,255,255,0.28)',
-    fontFamily: FONT,
-    letterSpacing: '0.1px',
+    fontFamily: SANS,
+    letterSpacing: '0.2px',
+    textAlign: 'center',
   },
   form: {
+    width: '100%',
     display: 'flex',
     flexDirection: 'column',
+    alignItems: 'center',
     gap: '20px',
   },
   error: {
-    margin: '0',
+    margin: 0,
     fontSize: '11px',
     color: '#f43f5e',
-    fontFamily: FONT,
+    fontFamily: SANS,
+    textAlign: 'center',
     marginTop: '-8px',
   },
   submitBtn: {
@@ -219,8 +191,8 @@ const s: Record<string, CSSProperties> = {
     fontSize: '13px',
     fontWeight: 600,
     cursor: 'pointer',
-    fontFamily: FONT,
-    transition: 'background 120ms ease, transform 100ms ease',
+    fontFamily: SANS,
+    transition: 'opacity 120ms ease, transform 100ms ease',
     letterSpacing: '-0.1px',
   },
   submitDisabled: {
@@ -232,7 +204,7 @@ const s: Record<string, CSSProperties> = {
     fontSize: '11px',
     color: 'rgba(255,255,255,0.25)',
     textAlign: 'center',
-    fontFamily: FONT,
+    fontFamily: SANS,
   },
   switchLink: {
     background: 'transparent',
@@ -242,7 +214,7 @@ const s: Record<string, CSSProperties> = {
     cursor: 'pointer',
     padding: 0,
     transition: 'color 120ms ease',
-    fontFamily: FONT,
+    fontFamily: SANS,
     textDecoration: 'underline',
     textUnderlineOffset: '2px',
   },

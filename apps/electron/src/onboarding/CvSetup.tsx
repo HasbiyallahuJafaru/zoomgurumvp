@@ -4,7 +4,8 @@ interface CvSetupProps {
   onDone: () => void;
 }
 
-const FONT = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
+const SANS  = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
+const SERIF = "'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif";
 
 export default function CvSetup({ onDone }: CvSetupProps) {
   const [uploading, setUploading] = useState(false);
@@ -17,10 +18,7 @@ export default function CvSetup({ onDone }: CvSetupProps) {
     try {
       const result = await window.zoomguru.parseCV();
       if (!result) return;
-      if ('error' in result) {
-        setError(result.error);
-        return;
-      }
+      if ('error' in result) { setError(result.error); return; }
       setFilename(result.filename);
     } finally {
       setUploading(false);
@@ -35,27 +33,15 @@ export default function CvSetup({ onDone }: CvSetupProps) {
   return (
     <>
       <style>{`
-        .zg-primary:hover:not(:disabled) {
-          background: rgba(255,255,255,1.0) !important;
-        }
-        .zg-primary:active:not(:disabled) {
-          transform: scale(0.98);
-        }
-        .zg-ghost:hover {
-          color: rgba(255,255,255,0.45) !important;
-        }
-        .zg-close:hover {
-          color: rgba(255,255,255,0.50) !important;
-        }
+        .zg-primary:hover:not(:disabled) { opacity: 0.90; }
+        .zg-primary:active:not(:disabled) { transform: scale(0.98); }
+        .zg-ghost:hover { color: rgba(255,255,255,0.45) !important; }
+        .zg-close:hover { color: rgba(255,255,255,0.50) !important; }
       `}</style>
 
       <div style={s.root}>
-        <button
-          className="zg-close"
-          style={s.closeBtn}
-          onClick={() => { void window.zoomguru.quitApp(); }}
-          aria-label="Close"
-        >
+        <button className="zg-close" style={s.closeBtn}
+          onClick={() => { void window.zoomguru.quitApp(); }} aria-label="Close">
           ×
         </button>
 
@@ -79,11 +65,7 @@ export default function CvSetup({ onDone }: CvSetupProps) {
 
           <div style={s.actions}>
             {filename ? (
-              <button
-                className="zg-primary"
-                style={s.primaryBtn}
-                onClick={onDone}
-              >
+              <button className="zg-primary" style={s.primaryBtn} onClick={onDone}>
                 Continue →
               </button>
             ) : (
@@ -98,11 +80,8 @@ export default function CvSetup({ onDone }: CvSetupProps) {
             )}
 
             {!filename && (
-              <button
-                className="zg-ghost"
-                style={s.ghostBtn}
-                onClick={() => { void handleSkip(); }}
-              >
+              <button className="zg-ghost" style={s.ghostBtn}
+                onClick={() => { void handleSkip(); }}>
                 Skip for now
               </button>
             )}
@@ -124,7 +103,7 @@ const s: Record<string, CSSProperties> = {
     borderRadius: '16px',
     position: 'relative',
     overflow: 'hidden',
-    fontFamily: FONT,
+    fontFamily: SANS,
   },
   closeBtn: {
     position: 'absolute',
@@ -138,70 +117,82 @@ const s: Record<string, CSSProperties> = {
     cursor: 'pointer',
     padding: '2px 4px',
     transition: 'color 120ms ease',
-    fontFamily: FONT,
+    fontFamily: SANS,
   },
   content: {
     width: '100%',
     maxWidth: '290px',
     display: 'flex',
     flexDirection: 'column',
+    alignItems: 'center',
     gap: '28px',
   },
   brand: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '6px',
+    alignItems: 'center',
+    gap: '8px',
   },
   step: {
     fontSize: '9px',
     fontWeight: 700,
-    letterSpacing: '0.6px',
-    color: 'rgba(255,255,255,0.22)',
+    letterSpacing: '0.8px',
+    color: 'rgba(255,255,255,0.20)',
     textTransform: 'uppercase',
-    fontFamily: FONT,
+    fontFamily: SANS,
+    textAlign: 'center',
   },
   title: {
-    fontSize: '18px',
-    fontWeight: 600,
+    fontSize: '26px',
+    fontWeight: 400,
+    fontStyle: 'italic',
+    fontFamily: SERIF,
     color: 'rgba(255,255,255,0.90)',
-    letterSpacing: '-0.3px',
-    fontFamily: FONT,
+    letterSpacing: '0.2px',
+    textAlign: 'center',
   },
   subtitle: {
     fontSize: '11px',
     color: 'rgba(255,255,255,0.28)',
     lineHeight: 1.55,
-    fontFamily: FONT,
+    fontFamily: SANS,
+    textAlign: 'center',
   },
   fileRow: {
     display: 'flex',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: '8px',
     borderBottom: '1px solid rgba(255,255,255,0.08)',
     paddingBottom: '12px',
+    width: '100%',
   },
   fileCheck: {
     fontSize: '12px',
     color: '#10b981',
-    fontFamily: FONT,
+    fontFamily: SANS,
   },
   fileName: {
     fontSize: '12px',
     color: 'rgba(255,255,255,0.55)',
-    fontFamily: FONT,
+    fontFamily: SANS,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
+    maxWidth: '220px',
   },
   error: {
     margin: 0,
     fontSize: '11px',
     color: '#f43f5e',
-    fontFamily: FONT,
+    fontFamily: SANS,
+    textAlign: 'center',
   },
   actions: {
+    width: '100%',
     display: 'flex',
     flexDirection: 'column',
+    alignItems: 'center',
     gap: '8px',
   },
   primaryBtn: {
@@ -214,9 +205,10 @@ const s: Record<string, CSSProperties> = {
     fontSize: '13px',
     fontWeight: 600,
     cursor: 'pointer',
-    fontFamily: FONT,
-    transition: 'background 120ms ease, transform 100ms ease',
+    fontFamily: SANS,
+    transition: 'opacity 120ms ease, transform 100ms ease',
     letterSpacing: '-0.1px',
+    textAlign: 'center',
   },
   disabledBtn: {
     background: 'rgba(255,255,255,0.20)',
@@ -230,8 +222,9 @@ const s: Record<string, CSSProperties> = {
     color: 'rgba(255,255,255,0.22)',
     fontSize: '11px',
     cursor: 'pointer',
-    fontFamily: FONT,
+    fontFamily: SANS,
     transition: 'color 120ms ease',
     letterSpacing: '0.1px',
+    textAlign: 'center',
   },
 };
