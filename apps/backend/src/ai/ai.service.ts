@@ -1,9 +1,29 @@
 import { Injectable } from '@nestjs/common';
 import { ServerResponse } from 'http';
 
-const BASE_SYSTEM_PROMPT = `You are ZoomGuru, an AI interview assistant. Answer the interview question clearly and confidently, as if speaking directly to the interviewer. Be concise and professional. For coding: show approach then code. For behavioral: use STAR format naturally. Keep answers to 3-6 sentences unless more depth is needed.`;
+const BASE_PROMPT_SUFFIX = `Answer questions clearly and confidently, as if speaking directly to the interviewer. Be concise and professional. For coding: show approach then code. For behavioral: use STAR format naturally. Keep answers 3-6 sentences unless more depth is needed.`;
 
-const VISION_SYSTEM_PROMPT = `You are ZoomGuru, an AI interview assistant. The user has shared a screenshot of their screen during a job interview. Analyze what you see and provide a concise, helpful response — answer any visible question, explain any visible code or diagram, or describe what is on screen. Be direct and professional.`;
+function buildSystemPrompt(cvText?: string, jdText?: string): string {
+  if (!cvText && !jdText) {
+    return `You are ZoomGuru, an AI interview assistant. ${BASE_PROMPT_SUFFIX}`;
+  }
+  let prompt = `You are ZoomGuru, an AI interview assistant helping a specific candidate.\n\n`;
+  if (cvText) prompt += `CANDIDATE BACKGROUND (CV/RESUME):\n${cvText}\n\n`;
+  if (jdText) prompt += `ROLE BEING INTERVIEWED FOR:\n${jdText}\n\n`;
+  prompt += `Answer all questions as this specific candidate applying for this specific role. Tailor responses to their actual experience and skills. ${BASE_PROMPT_SUFFIX}`;
+  return prompt;
+}
+
+function buildVisionPrompt(cvText?: string, jdText?: string): string {
+  if (!cvText && !jdText) {
+    return `You are ZoomGuru, an AI interview assistant. The user has shared a screenshot of their screen during a job interview. Analyze what you see and provide a concise, helpful response — answer any visible question, explain any visible code or diagram, or describe what is on screen. Be direct and professional.`;
+  }
+  let prompt = `You are ZoomGuru, an AI interview assistant helping a specific candidate.\n\n`;
+  if (cvText) prompt += `CANDIDATE BACKGROUND (CV/RESUME):\n${cvText}\n\n`;
+  if (jdText) prompt += `ROLE BEING INTERVIEWED FOR:\n${jdText}\n\n`;
+  prompt += `The candidate has shared a screenshot during their interview. Analyze what you see and provide a concise, targeted response tailored to their background and this role — answer the visible question as this candidate would, explain code or diagrams in the context of their skills, or describe what is on screen. Be direct and specific.`;
+  return prompt;
+}
 
 const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions';
 const GROQ_TRANSCRIBE_URL = 'https://api.groq.com/openai/v1/audio/transcriptions';
@@ -46,11 +66,13 @@ export class AiService {
   private buildBody(
     model: 'deepseek-chat' | 'deepseek-reasoner',
     transcript: string,
+    cvText?: string,
+    jdText?: string,
   ): Record<string, unknown> {
     const base = {
       model,
       messages: [
-        { role: 'system', content: BASE_SYSTEM_PROMPT },
+        { role: 'system', content: buildSystemPrompt(cvText, jdText) },
         { role: 'user', content: transcript },
       ],
       stream: true,
@@ -68,8 +90,10 @@ export class AiService {
     model: 'deepseek-chat' | 'deepseek-reasoner';
     transcript: string;
     reply: ServerResponse;
+    cvText?: string;
+    jdText?: string;
   }): Promise<void> {
-    const { model, transcript, reply } = params;
+    const { model, transcript, reply, cvText, jdText } = params;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30_000);
 
@@ -80,7 +104,7 @@ export class AiService {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${process.env.DEEPSEEK_API_KEY ?? ''}`,
         },
-        body: JSON.stringify(this.buildBody(model, transcript)),
+        body: JSON.stringify(this.buildBody(model, transcript, cvText, jdText)),
         signal: controller.signal,
       });
 
@@ -140,8 +164,10 @@ export class AiService {
   private async streamToGroqVision(params: {
     imageBase64: string;
     reply: ServerResponse;
+    cvText?: string;
+    jdText?: string;
   }): Promise<void> {
-    const { imageBase64, reply } = params;
+    const { imageBase64, reply, cvText, jdText } = params;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30_000);
 
@@ -164,7 +190,7 @@ export class AiService {
                 },
                 {
                   type: 'text',
-                  text: VISION_SYSTEM_PROMPT,
+                  text: buildVisionPrompt(cvText, jdText),
                 },
               ],
             },
@@ -230,16 +256,31 @@ export class AiService {
   async streamAnswer(params: {
     transcript: string;
     reply: ServerResponse;
+    cvText?: string;
+    jdText?: string;
   }): Promise<void> {
     const model = this.routeModel(params.transcript);
-    await this.streamToDeepSeek({ model, transcript: params.transcript, reply: params.reply });
+    await this.streamToDeepSeek({
+      model,
+      transcript: params.transcript,
+      reply: params.reply,
+      cvText: params.cvText,
+      jdText: params.jdText,
+    });
   }
 
   async streamScreenshot(params: {
     image: string;
     reply: ServerResponse;
+    cvText?: string;
+    jdText?: string;
   }): Promise<void> {
-    await this.streamToGroqVision({ imageBase64: params.image, reply: params.reply });
+    await this.streamToGroqVision({
+      imageBase64: params.image,
+      reply: params.reply,
+      cvText: params.cvText,
+      jdText: params.jdText,
+    });
   }
 
   async transcribe(params: { audio: string }): Promise<string> {

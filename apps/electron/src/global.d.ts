@@ -1,9 +1,21 @@
+interface CvResult {
+  text: string;
+  filename: string;
+}
+
+interface CvError {
+  error: string;
+}
+
 interface ZoomGuruBridge {
   onTrigger(event: string, callback: (...args: any[]) => void): void;
   captureScreen(): Promise<string>;
   getDeviceId(): Promise<string>;
   hideWindow(): Promise<void>;
   requestMicPermission(): Promise<boolean>;
+  parseCV(): Promise<CvResult | CvError | null>;
+  loadCV(): Promise<CvResult | null>;
+  clearCV(): Promise<void>;
 }
 
 declare global {

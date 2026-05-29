@@ -8,8 +8,11 @@ import {
   screen as electronScreen,
   session,
   systemPreferences,
+  dialog,
 } from 'electron';
 import path from 'path';
+import fs from 'fs';
+import pdfParse from 'pdf-parse';
 import Store from 'electron-store';
 import { initCapture } from './capture';
 import { getDeviceFingerprint } from './fingerprint';
@@ -17,6 +20,8 @@ import { getDeviceFingerprint } from './fingerprint';
 interface WindowStore {
   windowX: number;
   windowY: number;
+  cvText?: string;
+  cvFilename?: string;
 }
 
 let mainWindow: BrowserWindow | null = null;
@@ -178,6 +183,50 @@ function registerIpcHandlers(): void {
     }
     // On Windows/Linux the Chromium session permission handler covers mic access
     return true;
+  });
+
+  ipcMain.handle('cv:parse', async () => {
+    const result = await dialog.showOpenDialog(mainWindow!, {
+      title: 'Select your CV',
+      properties: ['openFile'],
+      filters: [{ name: 'Documents', extensions: ['pdf', 'txt', 'md'] }],
+    });
+
+    if (result.canceled || !result.filePaths[0]) return null;
+
+    const filePath = result.filePaths[0];
+    const filename = path.basename(filePath);
+    const ext = path.extname(filePath).toLowerCase();
+
+    try {
+      let text: string;
+      if (ext === '.pdf') {
+        const buffer = fs.readFileSync(filePath);
+        const parsed = await pdfParse(buffer);
+        text = parsed.text;
+      } else {
+        text = fs.readFileSync(filePath, 'utf-8');
+      }
+
+      store.set('cvText', text);
+      store.set('cvFilename', filename);
+      return { text, filename };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      return { error: `Failed to parse file: ${message}` };
+    }
+  });
+
+  ipcMain.handle('cv:load', () => {
+    const text = store.get('cvText', '');
+    const filename = store.get('cvFilename', '');
+    if (!text) return null;
+    return { text, filename };
+  });
+
+  ipcMain.handle('cv:clear', () => {
+    store.delete('cvText');
+    store.delete('cvFilename');
   });
 }
 

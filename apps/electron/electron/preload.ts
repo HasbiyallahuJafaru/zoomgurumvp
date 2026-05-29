@@ -18,4 +18,13 @@ contextBridge.exposeInMainWorld('zoomguru', {
 
   requestMicPermission: (): Promise<boolean> =>
     ipcRenderer.invoke('permissions:request-mic'),
+
+  parseCV: (): Promise<{ text: string; filename: string } | { error: string } | null> =>
+    ipcRenderer.invoke('cv:parse'),
+
+  loadCV: (): Promise<{ text: string; filename: string } | null> =>
+    ipcRenderer.invoke('cv:load'),
+
+  clearCV: (): Promise<void> =>
+    ipcRenderer.invoke('cv:clear'),
 });

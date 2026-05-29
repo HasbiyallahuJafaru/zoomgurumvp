@@ -21,12 +21,19 @@ function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
+function truncateName(filename: string, max = 14): string {
+  const name = filename.replace(/\.(pdf|txt|md)$/i, '');
+  return name.length > max ? name.slice(0, max) + '…' : name;
+}
+
 export default function Overlay() {
   const [answer, setAnswer] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [micGranted, setMicGranted] = useState(true);
+  const [cvText, setCvText] = useState('');
+  const [cvFilename, setCvFilename] = useState('');
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
@@ -50,7 +57,10 @@ export default function Overlay() {
           Authorization: `Bearer ${token}`,
           'X-Device-ID': deviceId,
         },
-        body: JSON.stringify({ transcript }),
+        body: JSON.stringify({
+          transcript,
+          ...(cvText ? { cvText } : {}),
+        }),
       });
       const reader = response.body!.getReader();
       const decoder = new TextDecoder();
@@ -90,7 +100,10 @@ export default function Overlay() {
           Authorization: `Bearer ${token}`,
           'X-Device-ID': deviceId,
         },
-        body: JSON.stringify({ image: imageBase64 }),
+        body: JSON.stringify({
+          image: imageBase64,
+          ...(cvText ? { cvText } : {}),
+        }),
       });
       const reader = response.body!.getReader();
       const decoder = new TextDecoder();
@@ -115,6 +128,25 @@ export default function Overlay() {
     } finally {
       setIsStreaming(false);
     }
+  }
+
+  // --- CV handlers ---
+
+  async function handleUploadCv(): Promise<void> {
+    const result = await window.zoomguru.parseCV();
+    if (!result) return;
+    if ('error' in result) {
+      setAnswer(`⚠ ${result.error}`);
+      return;
+    }
+    setCvText(result.text);
+    setCvFilename(result.filename);
+  }
+
+  function handleClearCv(): void {
+    void window.zoomguru.clearCV();
+    setCvText('');
+    setCvFilename('');
   }
 
   // --- handlers ---
@@ -224,6 +256,14 @@ export default function Overlay() {
     // Pre-warm device ID cache so first query has zero IPC delay
     void getCachedDeviceId();
 
+    // Restore persisted CV from electron-store
+    void window.zoomguru.loadCV().then((stored) => {
+      if (stored) {
+        setCvText(stored.text);
+        setCvFilename(stored.filename);
+      }
+    });
+
     // Request mic permission on mount — triggers macOS OS dialog; probes
     // browser-level access on Windows so the Chromium prompt fires upfront
     void window.zoomguru.requestMicPermission().then((osGranted) => {
@@ -262,6 +302,28 @@ export default function Overlay() {
           {isStreaming && <span style={s.statusBlue}>● Thinking...</span>}
           {!micGranted && <span style={s.statusRed}>⚠ Mic denied</span>}
           {!isOnline && <span style={s.statusRed}>⚠ No connection</span>}
+
+          {cvFilename ? (
+            <div style={s.cvBadge}>
+              <span style={s.cvBadgeText}>📄 {truncateName(cvFilename)}</span>
+              <button
+                style={s.cvClearBtn}
+                onClick={handleClearCv}
+                aria-label="Remove CV"
+              >
+                ✕
+              </button>
+            </div>
+          ) : (
+            <button
+              style={s.cvUploadBtn}
+              onClick={() => { void handleUploadCv(); }}
+              aria-label="Upload CV"
+            >
+              + CV
+            </button>
+          )}
+
           <button
             style={s.closeBtn}
             onClick={() => { void window.zoomguru.hideWindow(); }}
@@ -364,6 +426,44 @@ const s: Record<string, ElectronStyle> = {
     fontSize: '11px',
     color: '#f87171',
     fontFamily: 'system-ui, sans-serif',
+  },
+  cvUploadBtn: {
+    background: 'rgba(255,255,255,0.07)',
+    border: '1px solid rgba(255,255,255,0.15)',
+    borderRadius: '6px',
+    color: 'rgba(255,255,255,0.55)',
+    fontSize: '10px',
+    fontFamily: 'system-ui, sans-serif',
+    cursor: 'pointer',
+    padding: '2px 7px',
+    letterSpacing: '0.2px',
+    WebkitAppRegion: 'no-drag',
+  },
+  cvBadge: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '3px',
+    background: 'rgba(74, 222, 128, 0.10)',
+    border: '1px solid rgba(74, 222, 128, 0.25)',
+    borderRadius: '6px',
+    padding: '2px 4px 2px 7px',
+    WebkitAppRegion: 'no-drag',
+  },
+  cvBadgeText: {
+    fontSize: '10px',
+    color: '#4ade80',
+    fontFamily: 'system-ui, sans-serif',
+    letterSpacing: '0.1px',
+  },
+  cvClearBtn: {
+    background: 'transparent',
+    border: 'none',
+    color: 'rgba(74, 222, 128, 0.55)',
+    fontSize: '9px',
+    cursor: 'pointer',
+    padding: '0 2px',
+    lineHeight: '1',
+    WebkitAppRegion: 'no-drag',
   },
   closeBtn: {
     background: 'transparent',

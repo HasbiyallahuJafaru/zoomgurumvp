@@ -17,26 +17,30 @@ export class AiController {
   @UseGuards(AuthGuard('jwt'))
   @Post('stream')
   async stream(
-    @Body() body: { transcript: string; sessionId?: string },
+    @Body() body: { transcript: string; sessionId?: string; cvText?: string; jdText?: string },
     @Res() reply: FastifyReply,
   ): Promise<void> {
     reply.raw.writeHead(200, SSE_HEADERS);
     await this.aiService.streamAnswer({
       transcript: body.transcript,
       reply: reply.raw,
+      cvText: body.cvText,
+      jdText: body.jdText,
     });
   }
 
   @UseGuards(AuthGuard('jwt'))
   @Post('screenshot')
   async screenshot(
-    @Body() body: { image: string; sessionId?: string },
+    @Body() body: { image: string; sessionId?: string; cvText?: string; jdText?: string },
     @Res() reply: FastifyReply,
   ): Promise<void> {
     reply.raw.writeHead(200, SSE_HEADERS);
     await this.aiService.streamScreenshot({
       image: body.image,
       reply: reply.raw,
+      cvText: body.cvText,
+      jdText: body.jdText,
     });
   }
 

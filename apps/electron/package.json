@@ -17,8 +17,10 @@
     "release:mac": "npm run build && electron-builder --mac --publish always --config electron-builder.config.js"
   },
   "dependencies": {
+    "@types/pdf-parse": "^1.1.5",
     "electron-store": "^8.2.0",
     "electron-updater": "^6.1.8",
+    "pdf-parse": "^2.4.5",
     "zustand": "^4.5.2"
   },
   "optionalDependencies": {
