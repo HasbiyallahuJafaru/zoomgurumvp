@@ -4,6 +4,7 @@ import AnswerStream from './AnswerStream';
 type ElectronStyle = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const FONT = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
 const SESSION_CAP = 40;
 const VAD_THRESHOLD = 0.015;
 const SILENCE_MS = 1500;
@@ -26,7 +27,7 @@ function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
-export default function Overlay() {
+export default function Overlay({ onLogout }: { onLogout: () => void }) {
   // --- state ---
   const [answer, setAnswer] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -37,6 +38,7 @@ export default function Overlay() {
   const [questionCount, setQuestionCount] = useState(0);
   const [isAutoMode, setIsAutoMode] = useState(false);
   const [isAutoListening, setIsAutoListening] = useState(false);
+  const [hovered, setHovered] = useState<string | null>(null);
 
   const sessionCapped = questionCount >= SESSION_CAP;
 
@@ -46,6 +48,7 @@ export default function Overlay() {
   const handleListenRef = useRef<() => void>(() => {});
   const handleScreenshotRef = useRef<() => void>(() => {});
   const handleClearRef = useRef<() => void>(() => {});
+  const handleAutoRef = useRef<() => void>(() => {});
 
   // --- refs (auto VAD) ---
   const questionCountRef = useRef(0);
@@ -59,11 +62,9 @@ export default function Overlay() {
   const autoRecorderRef = useRef<MediaRecorder | null>(null);
   const autoChunksRef = useRef<BlobPart[]>([]);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // Updated each render so callbacks always have fresh cvText + streamAnswer
   const startSegmentRef = useRef<() => void>(() => {});
   const processSegmentRef = useRef<(mimeType: string) => Promise<void>>(async () => {});
 
-  // Keep questionCountRef in sync for use inside async VAD callbacks
   useEffect(() => { questionCountRef.current = questionCount; }, [questionCount]);
 
   // --- streaming ---
@@ -86,9 +87,10 @@ export default function Overlay() {
           ...(cvText ? { cvText } : {}),
         }),
       });
+      if (response.status === 401) { onLogout(); return; }
       if (response.status === 429) {
         const data = await response.json() as { retryAfter?: number };
-        setAnswer(`⚠ Slow down — limit is 3 answers/min. Try again in ${data.retryAfter ?? 60}s.`);
+        setAnswer(`Rate limited. Try again in ${data.retryAfter ?? 60}s.`);
         return;
       }
       setQuestionCount((prev) => prev + 1);
@@ -111,7 +113,7 @@ export default function Overlay() {
         }
       }
     } catch {
-      setAnswer('⚠ Connection error. Try again.');
+      setAnswer('Connection error. Check backend.');
     } finally {
       setIsStreaming(false);
     }
@@ -135,9 +137,10 @@ export default function Overlay() {
           ...(cvText ? { cvText } : {}),
         }),
       });
+      if (response.status === 401) { onLogout(); return; }
       if (response.status === 429) {
         const data = await response.json() as { retryAfter?: number };
-        setAnswer(`⚠ Slow down — limit is 3 answers/min. Try again in ${data.retryAfter ?? 60}s.`);
+        setAnswer(`Rate limited. Try again in ${data.retryAfter ?? 60}s.`);
         return;
       }
       setQuestionCount((prev) => prev + 1);
@@ -160,7 +163,7 @@ export default function Overlay() {
         }
       }
     } catch {
-      setAnswer('⚠ Connection error. Try again.');
+      setAnswer('Connection error. Check backend.');
     } finally {
       setIsStreaming(false);
     }
@@ -192,7 +195,6 @@ export default function Overlay() {
     setIsAutoListening(false);
   }
 
-  // Updated each render — captures latest cvText via streamAnswer closure
   processSegmentRef.current = async (mimeType: string): Promise<void> => {
     vadStateRef.current = 'processing';
     setIsAutoListening(false);
@@ -200,9 +202,7 @@ export default function Overlay() {
     const duration = Date.now() - speechStartRef.current;
     const blob = new Blob(autoChunksRef.current, { type: mimeType });
 
-    // Gate 1: duration
     if (duration < MIN_SPEECH_MS) { vadStateRef.current = 'idle'; return; }
-    // Gate 2: blob size
     if (blob.size < MIN_BLOB_BYTES) { vadStateRef.current = 'idle'; return; }
 
     try {
@@ -220,12 +220,12 @@ export default function Overlay() {
         },
         body: JSON.stringify({ audio: base64 }),
       });
+      if (res.status === 401) { stopAutoMode(); onLogout(); return; }
       if (!res.ok) { vadStateRef.current = 'idle'; return; }
 
       const data = await res.json() as { transcript?: string };
       const transcript = data.transcript?.trim() ?? '';
 
-      // Gate 3: word count
       if (transcript.split(/\s+/).filter(Boolean).length < MIN_WORDS) {
         vadStateRef.current = 'idle';
         return;
@@ -238,7 +238,6 @@ export default function Overlay() {
 
       await streamAnswer(transcript);
 
-      // Stop auto if session cap hit after this answer
       if (questionCountRef.current >= SESSION_CAP) {
         stopAutoMode();
       }
@@ -249,7 +248,6 @@ export default function Overlay() {
     }
   };
 
-  // Updated each render — creates recorder with onstop → processSegmentRef.current
   startSegmentRef.current = (): void => {
     if (!autoStreamRef.current) return;
     const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
@@ -343,7 +341,7 @@ export default function Overlay() {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch {
       setMicGranted(false);
-      setAnswer('⚠ Mic access denied. Allow microphone in system settings.');
+      setAnswer('Mic access denied. Allow microphone in system settings.');
       return;
     }
 
@@ -364,7 +362,7 @@ export default function Overlay() {
       void (async () => {
         const blob = new Blob(chunksRef.current, { type: mimeType });
         if (blob.size === 0) {
-          setAnswer('⚠ No audio captured. Speak and try again.');
+          setAnswer('No audio captured. Speak and try again.');
           return;
         }
 
@@ -374,7 +372,7 @@ export default function Overlay() {
         try {
           [base64, deviceId] = await Promise.all([blobToBase64(blob), getCachedDeviceId()]);
         } catch {
-          setAnswer('⚠ Audio encoding error. Try again.');
+          setAnswer('Audio encoding error. Try again.');
           return;
         }
 
@@ -388,18 +386,19 @@ export default function Overlay() {
             },
             body: JSON.stringify({ audio: base64 }),
           });
+          if (res.status === 401) { onLogout(); return; }
           if (!res.ok) {
-            setAnswer('⚠ Transcription failed. Check backend logs.');
+            setAnswer('Transcription failed. Check backend logs.');
             return;
           }
           const data = await res.json() as { transcript?: string };
           if (data.transcript?.trim()) {
             void streamAnswer(data.transcript);
           } else {
-            setAnswer('⚠ No speech detected. Speak clearly and try again.');
+            setAnswer('No speech detected. Speak clearly and try again.');
           }
         } catch {
-          setAnswer('⚠ Transcription error. Check your connection.');
+          setAnswer('Transcription error. Check your connection.');
         }
       })();
     };
@@ -431,6 +430,10 @@ export default function Overlay() {
     chunksRef.current = [];
   };
 
+  handleAutoRef.current = () => {
+    if (isAutoModeRef.current) { stopAutoMode(); } else { void startAutoMode(); }
+  };
+
   // --- mount ---
 
   useEffect(() => {
@@ -453,6 +456,7 @@ export default function Overlay() {
     window.zoomguru.onTrigger('listen', () => { void handleListenRef.current(); });
     window.zoomguru.onTrigger('screenshot', () => { void handleScreenshotRef.current(); });
     window.zoomguru.onTrigger('clear', () => handleClearRef.current());
+    window.zoomguru.onTrigger('auto', () => { void handleAutoRef.current(); });
 
     const onOnline = () => setIsOnline(true);
     const onOffline = () => setIsOnline(false);
@@ -466,107 +470,174 @@ export default function Overlay() {
     };
   }, []);
 
+  // --- helpers ---
+
+  const isRec = isListening || isAutoListening;
+  const isGen = isStreaming;
+  const isAutoOn = isAutoMode && !isAutoListening;
+
+  function fbg(id: string, activeColor?: string): CSSProperties {
+    const isH = hovered === id;
+    if (activeColor) {
+      return { background: isH ? activeColor.replace('0.07', '0.12') : activeColor };
+    }
+    return { background: isH ? 'rgba(255,255,255,0.05)' : 'transparent' };
+  }
+
   // --- render ---
 
   return (
-    <div style={s.root}>
-      <div style={s.header}>
-        <span style={s.headerTitle}>ZoomGuru</span>
-        <div style={s.headerRight}>
-          {isAutoMode && !isAutoListening && !isStreaming && (
-            <span style={s.statusAuto}>◉ Listening</span>
-          )}
-          {(isListening || isAutoListening) && (
-            <span style={s.statusGreen}>● Recording...</span>
-          )}
-          {isStreaming && <span style={s.statusBlue}>● Thinking...</span>}
-          {!micGranted && <span style={s.statusRed}>⚠ Mic denied</span>}
-          {!isOnline && <span style={s.statusRed}>⚠ No connection</span>}
-          {questionCount > 0 && !sessionCapped && (
-            <span style={s.sessionCount}>{questionCount}/{SESSION_CAP}</span>
-          )}
+    <>
+      <style>{`
+        @keyframes zg-pulse {
+          0%, 100% { opacity: 1 }
+          50% { opacity: 0.3 }
+        }
+        .zg-fbtn:active:not([disabled]) {
+          transform: scale(0.96) !important;
+        }
+        .zg-ibtn:hover {
+          background: rgba(255,255,255,0.07) !important;
+          color: rgba(255,255,255,0.60) !important;
+        }
+      `}</style>
+
+      <div style={s.root}>
+
+        {/* ── Header ── */}
+        <div style={s.header}>
+          <span style={s.wordmark}>ZoomGuru</span>
+
+          <div style={s.headerRight}>
+            {/* Status */}
+            {isRec && (
+              <span style={s.statusRec}>
+                <span style={s.recDot} />
+                REC
+              </span>
+            )}
+            {isAutoOn && !isGen && (
+              <span style={s.statusAuto}>AUTO</span>
+            )}
+            {isGen && (
+              <span style={s.statusGen}>GEN</span>
+            )}
+            {!micGranted && <span style={s.statusWarn}>no mic</span>}
+            {!isOnline && <span style={s.statusWarn}>offline</span>}
+            {questionCount > 0 && !sessionCapped && (
+              <span style={s.sessionCount}>{questionCount}/{SESSION_CAP}</span>
+            )}
+
+            {/* Buttons */}
+            <button
+              className="zg-ibtn"
+              style={s.iconBtn}
+              onClick={() => { stopAutoMode(); onLogout(); }}
+              aria-label="Log out"
+            >
+              ⏏
+            </button>
+            <button
+              className="zg-ibtn"
+              style={s.iconBtn}
+              onClick={() => { void window.zoomguru.quitApp(); }}
+              aria-label="Quit"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+
+        {/* ── Content ── */}
+        {sessionCapped ? (
+          <div style={s.capNotice}>
+            <span style={s.capCount}>40 / 40</span>
+            <p style={s.capMessage}>Session complete</p>
+            <p style={s.capSub}>Start a new session to continue.</p>
+            <button style={s.newSessionBtn} onClick={() => handleClearRef.current()}>
+              New Session
+            </button>
+          </div>
+        ) : (
+          <AnswerStream answer={answer} isStreaming={isStreaming} />
+        )}
+
+        {/* ── Footer ── */}
+        <div style={s.footer}>
           <button
-            style={s.closeBtn}
-            onClick={() => { void window.zoomguru.quitApp(); }}
-            aria-label="Close"
+            className="zg-fbtn"
+            style={{
+              ...s.footerBtn,
+              ...(isListening
+                ? { borderTop: '2px solid #f43f5e', ...fbg('listen', 'rgba(244,63,94,0.07)') }
+                : fbg('listen')
+              ),
+              opacity: isStreaming || sessionCapped || isAutoMode ? 0.35 : 1,
+            }}
+            onMouseEnter={() => setHovered('listen')}
+            onMouseLeave={() => setHovered(null)}
+            onClick={() => { void handleListenRef.current(); }}
+            disabled={isStreaming || sessionCapped || isAutoMode}
+            aria-label={isListening ? 'Stop recording' : 'Start listening'}
           >
-            ✕
+            <span style={s.btnLabel}>{isListening ? 'Stop' : 'Listen'}</span>
+            <span style={s.btnHint}>⌘⇧A</span>
+          </button>
+
+          <button
+            className="zg-fbtn"
+            style={{
+              ...s.footerBtn,
+              ...fbg('screen'),
+              opacity: isStreaming || sessionCapped ? 0.35 : 1,
+            }}
+            onMouseEnter={() => setHovered('screen')}
+            onMouseLeave={() => setHovered(null)}
+            onClick={() => { void handleScreenshotRef.current(); }}
+            disabled={isStreaming || sessionCapped}
+            aria-label="Screenshot"
+          >
+            <span style={s.btnLabel}>Screen</span>
+            <span style={s.btnHint}>⌘⇧S</span>
+          </button>
+
+          <button
+            className="zg-fbtn"
+            style={{
+              ...s.footerBtn,
+              ...(isAutoListening
+                ? { borderTop: '2px solid #f43f5e', ...fbg('auto', 'rgba(244,63,94,0.07)') }
+                : isAutoMode
+                ? { borderTop: '2px solid #10b981', ...fbg('auto', 'rgba(16,185,129,0.07)') }
+                : fbg('auto')
+              ),
+              opacity: sessionCapped ? 0.35 : 1,
+            }}
+            onMouseEnter={() => setHovered('auto')}
+            onMouseLeave={() => setHovered(null)}
+            onClick={() => { if (isAutoMode) { stopAutoMode(); } else { void startAutoMode(); } }}
+            disabled={sessionCapped}
+            aria-label={isAutoMode ? 'Stop auto mode' : 'Start auto mode'}
+          >
+            <span style={s.btnLabel}>{isAutoMode ? 'Auto On' : 'Auto'}</span>
+            <span style={s.btnHint}>⌘⇧D</span>
+          </button>
+
+          <button
+            className="zg-fbtn"
+            style={{ ...s.footerBtn, ...fbg('clear'), borderRight: 'none' }}
+            onMouseEnter={() => setHovered('clear')}
+            onMouseLeave={() => setHovered(null)}
+            onClick={() => handleClearRef.current()}
+            aria-label="Clear"
+          >
+            <span style={s.btnLabel}>{sessionCapped ? 'Reset' : 'Clear'}</span>
+            <span style={s.btnHint}>⌘⇧C</span>
           </button>
         </div>
+
       </div>
-
-      {sessionCapped ? (
-        <div style={s.capNotice}>
-          <span style={s.capCount}>40 / 40</span>
-          <p style={s.capMessage}>Session limit reached</p>
-          <p style={s.capSub}>Start a new session to continue.</p>
-          <button style={s.newSessionBtn} onClick={() => handleClearRef.current()}>
-            New Session
-          </button>
-        </div>
-      ) : (
-        <AnswerStream answer={answer} isStreaming={isStreaming} />
-      )}
-
-      <div style={s.footer}>
-        <button
-          style={{
-            ...s.footerBtn,
-            ...(isListening ? s.footerBtnRecording : {}),
-            opacity: isStreaming || sessionCapped || isAutoMode ? 0.4 : 1,
-          }}
-          onClick={() => { void handleListenRef.current(); }}
-          disabled={isStreaming || sessionCapped || isAutoMode}
-          aria-label={isListening ? 'Stop recording' : 'Start listening'}
-        >
-          <span style={s.footerIcon}>{isListening ? '⏹' : '🎤'}</span>
-          <span style={s.footerLabel}>{isListening ? 'Stop' : 'Listen'}</span>
-          <span style={s.footerShortcut}>⌘⇧A</span>
-        </button>
-
-        <button
-          style={{
-            ...s.footerBtn,
-            opacity: isStreaming || sessionCapped ? 0.4 : 1,
-          }}
-          onClick={() => { void handleScreenshotRef.current(); }}
-          disabled={isStreaming || sessionCapped}
-          aria-label="Screenshot"
-        >
-          <span style={s.footerIcon}>🖥</span>
-          <span style={s.footerLabel}>Screen</span>
-          <span style={s.footerShortcut}>⌘⇧S</span>
-        </button>
-
-        <button
-          style={{
-            ...s.footerBtn,
-            ...(isAutoListening ? s.footerBtnRecording : {}),
-            ...(isAutoMode && !isAutoListening ? s.footerBtnAutoOn : {}),
-            opacity: sessionCapped ? 0.4 : 1,
-          }}
-          onClick={() => {
-            if (isAutoMode) { stopAutoMode(); } else { void startAutoMode(); }
-          }}
-          disabled={sessionCapped}
-          aria-label={isAutoMode ? 'Stop auto mode' : 'Start auto mode'}
-        >
-          <span style={s.footerIcon}>{isAutoMode ? '⏹' : '◉'}</span>
-          <span style={s.footerLabel}>{isAutoMode ? 'Auto On' : 'Auto'}</span>
-          <span style={s.footerShortcut}>⌘⇧D</span>
-        </button>
-
-        <button
-          style={s.footerBtn}
-          onClick={() => handleClearRef.current()}
-          aria-label="Clear"
-        >
-          <span style={s.footerIcon}>✕</span>
-          <span style={s.footerLabel}>{sessionCapped ? 'Reset' : 'Clear'}</span>
-          <span style={s.footerShortcut}>⌘⇧C</span>
-        </button>
-      </div>
-    </div>
+    </>
   );
 }
 
@@ -576,26 +647,33 @@ const s: Record<string, ElectronStyle> = {
     inset: 0,
     display: 'flex',
     flexDirection: 'column',
-    background: 'rgba(8, 8, 14, 0.82)',
-    backdropFilter: 'blur(20px) saturate(180%)',
-    WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+    background: 'rgba(7, 7, 11, 0.92)',
+    backdropFilter: 'blur(28px) saturate(160%)',
+    WebkitBackdropFilter: 'blur(28px) saturate(160%)',
     borderRadius: '16px',
-    border: '1px solid rgba(255,255,255,0.08)',
+    border: '1px solid rgba(255,255,255,0.07)',
+    fontFamily: FONT,
+    overflow: 'hidden',
   },
+
+  // Header
   header: {
     height: '40px',
     minHeight: '40px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: '0 12px',
+    padding: '0 12px 0 14px',
+    borderBottom: '1px solid rgba(255,255,255,0.06)',
     WebkitAppRegion: 'drag',
+    flexShrink: 0,
   },
-  headerTitle: {
-    fontSize: '13px',
-    fontWeight: 700,
-    color: '#ffffff',
-    fontFamily: 'system-ui, sans-serif',
+  wordmark: {
+    fontSize: '12px',
+    fontWeight: 600,
+    color: 'rgba(255,255,255,0.72)',
+    letterSpacing: '-0.2px',
+    fontFamily: FONT,
   },
   headerRight: {
     display: 'flex',
@@ -603,127 +681,152 @@ const s: Record<string, ElectronStyle> = {
     gap: '8px',
     WebkitAppRegion: 'no-drag',
   },
-  statusGreen: {
-    fontSize: '11px',
-    color: '#4ade80',
-    fontFamily: 'system-ui, sans-serif',
+
+  // Status labels
+  statusRec: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+    fontSize: '9px',
+    fontWeight: 700,
+    letterSpacing: '0.6px',
+    color: '#f43f5e',
+    textTransform: 'uppercase',
+    fontFamily: FONT,
   },
-  statusBlue: {
-    fontSize: '11px',
-    color: '#60a5fa',
-    fontFamily: 'system-ui, sans-serif',
+  recDot: {
+    width: '5px',
+    height: '5px',
+    borderRadius: '50%',
+    background: '#f43f5e',
+    display: 'inline-block',
+    animation: 'zg-pulse 1.2s ease-in-out infinite',
   },
-  statusRed: {
-    fontSize: '11px',
-    color: '#f87171',
-    fontFamily: 'system-ui, sans-serif',
+  statusGen: {
+    fontSize: '9px',
+    fontWeight: 700,
+    letterSpacing: '0.6px',
+    color: '#6366f1',
+    textTransform: 'uppercase',
+    fontFamily: FONT,
   },
   statusAuto: {
-    fontSize: '11px',
-    color: '#34d399',
-    fontFamily: 'system-ui, sans-serif',
+    fontSize: '9px',
+    fontWeight: 700,
+    letterSpacing: '0.6px',
+    color: '#10b981',
+    textTransform: 'uppercase',
+    fontFamily: FONT,
+  },
+  statusWarn: {
+    fontSize: '9px',
+    fontWeight: 500,
+    letterSpacing: '0.3px',
+    color: 'rgba(255,255,255,0.30)',
+    textTransform: 'uppercase',
+    fontFamily: FONT,
   },
   sessionCount: {
-    fontSize: '10px',
-    color: 'rgba(255,255,255,0.25)',
-    fontFamily: 'system-ui, sans-serif',
-    letterSpacing: '0.2px',
+    fontSize: '9px',
+    color: 'rgba(255,255,255,0.18)',
+    letterSpacing: '0.3px',
+    fontFamily: FONT,
   },
-  closeBtn: {
+
+  // Icon buttons (header)
+  iconBtn: {
     background: 'transparent',
     border: 'none',
-    color: 'rgba(255,255,255,0.35)',
+    color: 'rgba(255,255,255,0.25)',
     fontSize: '14px',
     lineHeight: '1',
     cursor: 'pointer',
-    padding: '2px 6px',
+    padding: '3px 5px',
     borderRadius: '4px',
+    transition: 'background 120ms ease, color 120ms ease',
     WebkitAppRegion: 'no-drag',
+    fontFamily: FONT,
   },
+
+  // Session cap
   capNotice: {
     flex: 1,
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: '6px',
+    gap: '4px',
     padding: '16px',
   },
   capCount: {
-    fontSize: '11px',
-    color: 'rgba(255,255,255,0.2)',
-    fontFamily: 'system-ui, sans-serif',
+    fontSize: '10px',
+    fontWeight: 600,
+    color: 'rgba(255,255,255,0.14)',
     letterSpacing: '0.5px',
+    fontFamily: FONT,
   },
   capMessage: {
-    margin: 0,
-    fontSize: '14px',
-    fontWeight: 600,
-    color: 'rgba(255,255,255,0.75)',
-    fontFamily: 'system-ui, sans-serif',
+    margin: '4px 0 0',
+    fontSize: '13px',
+    fontWeight: 500,
+    color: 'rgba(255,255,255,0.60)',
+    fontFamily: FONT,
   },
   capSub: {
-    margin: '0 0 12px',
-    fontSize: '12px',
-    color: 'rgba(255,255,255,0.3)',
-    fontFamily: 'system-ui, sans-serif',
+    margin: '2px 0 16px',
+    fontSize: '11px',
+    color: 'rgba(255,255,255,0.22)',
+    fontFamily: FONT,
   },
   newSessionBtn: {
-    padding: '8px 20px',
-    background: 'rgba(255,255,255,0.9)',
+    padding: '8px 22px',
+    background: 'rgba(255,255,255,0.88)',
     border: 'none',
-    borderRadius: '8px',
-    color: '#08080e',
+    borderRadius: '6px',
+    color: '#07070b',
     fontSize: '12px',
     fontWeight: 600,
     cursor: 'pointer',
-    fontFamily: 'system-ui, sans-serif',
+    fontFamily: FONT,
+    transition: 'background 120ms ease',
   },
+
+  // Footer
   footer: {
-    height: '60px',
-    minHeight: '60px',
+    height: '52px',
+    minHeight: '52px',
     display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '6px',
-    padding: '0 8px 8px',
+    borderTop: '1px solid rgba(255,255,255,0.06)',
     WebkitAppRegion: 'no-drag',
+    flexShrink: 0,
   },
   footerBtn: {
+    flex: 1,
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: '1px',
-    background: 'rgba(255,255,255,0.07)',
-    border: '1px solid rgba(255,255,255,0.10)',
-    borderRadius: '10px',
+    justifyContent: 'center',
+    gap: '4px',
+    border: 'none',
+    borderRight: '1px solid rgba(255,255,255,0.06)',
+    borderTop: '2px solid transparent',
     cursor: 'pointer',
-    padding: '6px 12px',
-    transition: 'opacity 0.15s ease',
+    padding: 0,
+    transition: 'background 120ms ease, transform 100ms ease',
     WebkitAppRegion: 'no-drag',
   },
-  footerBtnRecording: {
-    background: 'rgba(239, 68, 68, 0.15)',
-    border: '1px solid rgba(239, 68, 68, 0.40)',
-  },
-  footerBtnAutoOn: {
-    background: 'rgba(52, 211, 153, 0.10)',
-    border: '1px solid rgba(52, 211, 153, 0.35)',
-  },
-  footerIcon: {
-    fontSize: '14px',
-    lineHeight: '1',
-  },
-  footerLabel: {
-    fontSize: '10px',
+  btnLabel: {
+    fontSize: '11px',
+    fontWeight: 500,
     color: 'rgba(255,255,255,0.55)',
-    fontFamily: 'system-ui, sans-serif',
+    lineHeight: '1',
+    fontFamily: FONT,
     letterSpacing: '0.1px',
   },
-  footerShortcut: {
-    fontSize: '8px',
-    color: 'rgba(255,255,255,0.22)',
-    fontFamily: 'system-ui, sans-serif',
-    letterSpacing: '0.2px',
+  btnHint: {
+    fontSize: '9px',
+    color: 'rgba(255,255,255,0.18)',
+    lineHeight: '1',
+    fontFamily: FONT,
   },
 };

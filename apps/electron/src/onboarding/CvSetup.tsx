@@ -4,6 +4,8 @@ interface CvSetupProps {
   onDone: () => void;
 }
 
+const FONT = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
+
 export default function CvSetup({ onDone }: CvSetupProps) {
   const [uploading, setUploading] = useState(false);
   const [filename, setFilename] = useState('');
@@ -31,54 +33,83 @@ export default function CvSetup({ onDone }: CvSetupProps) {
   }
 
   return (
-    <div style={s.root}>
-      <button
-        style={s.closeBtn}
-        onClick={() => { void window.zoomguru.quitApp(); }}
-        aria-label="Close"
-      >
-        ✕
-      </button>
+    <>
+      <style>{`
+        .zg-primary:hover:not(:disabled) {
+          background: rgba(255,255,255,1.0) !important;
+        }
+        .zg-primary:active:not(:disabled) {
+          transform: scale(0.98);
+        }
+        .zg-ghost:hover {
+          color: rgba(255,255,255,0.45) !important;
+        }
+        .zg-close:hover {
+          color: rgba(255,255,255,0.50) !important;
+        }
+      `}</style>
 
-      <div style={s.card}>
-        <p style={s.eyebrow}>Setup</p>
-        <h1 style={s.title}>Upload your CV</h1>
-        <p style={s.subtitle}>
-          We'll tailor every answer to your background and experience.
-        </p>
+      <div style={s.root}>
+        <button
+          className="zg-close"
+          style={s.closeBtn}
+          onClick={() => { void window.zoomguru.quitApp(); }}
+          aria-label="Close"
+        >
+          ×
+        </button>
 
-        {filename ? (
-          <div style={s.successBlock}>
-            <span style={s.successIcon}>✓</span>
-            <span style={s.successName}>{filename}</span>
+        <div style={s.content}>
+          <div style={s.brand}>
+            <span style={s.step}>2 of 2</span>
+            <span style={s.title}>Upload your CV</span>
+            <span style={s.subtitle}>
+              We'll tailor every answer to your background.
+            </span>
           </div>
-        ) : null}
 
-        {error ? <p style={s.errorText}>{error}</p> : null}
-
-        <div style={s.actions}>
-          {filename ? (
-            <button style={s.primaryBtn} onClick={onDone}>
-              Continue →
-            </button>
-          ) : (
-            <button
-              style={{ ...s.primaryBtn, ...(uploading ? s.disabledBtn : {}) }}
-              onClick={() => { void handleUpload(); }}
-              disabled={uploading}
-            >
-              {uploading ? 'Opening…' : 'Upload CV'}
-            </button>
+          {filename && (
+            <div style={s.fileRow}>
+              <span style={s.fileCheck}>✓</span>
+              <span style={s.fileName}>{filename}</span>
+            </div>
           )}
 
-          {!filename && (
-            <button style={s.skipBtn} onClick={() => { void handleSkip(); }}>
-              Skip for now
-            </button>
-          )}
+          {error && <p style={s.error}>{error}</p>}
+
+          <div style={s.actions}>
+            {filename ? (
+              <button
+                className="zg-primary"
+                style={s.primaryBtn}
+                onClick={onDone}
+              >
+                Continue →
+              </button>
+            ) : (
+              <button
+                className="zg-primary"
+                style={{ ...s.primaryBtn, ...(uploading ? s.disabledBtn : {}) }}
+                onClick={() => { void handleUpload(); }}
+                disabled={uploading}
+              >
+                {uploading ? 'Opening…' : 'Choose File'}
+              </button>
+            )}
+
+            {!filename && (
+              <button
+                className="zg-ghost"
+                style={s.ghostBtn}
+                onClick={() => { void handleSkip(); }}
+              >
+                Skip for now
+              </button>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -89,114 +120,118 @@ const s: Record<string, CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    background: 'rgba(8, 8, 14, 0.97)',
+    background: 'rgba(7, 7, 11, 0.97)',
     borderRadius: '16px',
     position: 'relative',
     overflow: 'hidden',
+    fontFamily: FONT,
   },
   closeBtn: {
     position: 'absolute',
     top: '12px',
-    right: '12px',
+    right: '14px',
     background: 'transparent',
     border: 'none',
-    color: 'rgba(255, 255, 255, 0.35)',
-    fontSize: '16px',
+    color: 'rgba(255,255,255,0.22)',
+    fontSize: '18px',
     lineHeight: '1',
     cursor: 'pointer',
-    padding: '4px 8px',
-    borderRadius: '4px',
+    padding: '2px 4px',
+    transition: 'color 120ms ease',
+    fontFamily: FONT,
   },
-  card: {
+  content: {
     width: '100%',
-    maxWidth: '360px',
-    padding: '32px 24px',
-    background: 'rgba(255, 255, 255, 0.03)',
-    border: '1px solid rgba(255, 255, 255, 0.08)',
-    borderRadius: '12px',
-    boxSizing: 'border-box',
+    maxWidth: '290px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '28px',
   },
-  eyebrow: {
-    margin: '0 0 8px',
-    fontSize: '10px',
-    fontWeight: 600,
-    textTransform: 'uppercase' as const,
-    letterSpacing: '0.8px',
-    color: 'rgba(255, 255, 255, 0.3)',
-    fontFamily: 'system-ui, sans-serif',
+  brand: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+  },
+  step: {
+    fontSize: '9px',
+    fontWeight: 700,
+    letterSpacing: '0.6px',
+    color: 'rgba(255,255,255,0.22)',
+    textTransform: 'uppercase',
+    fontFamily: FONT,
   },
   title: {
-    margin: '0 0 6px',
-    fontSize: '22px',
-    fontWeight: 700,
-    color: '#ffffff',
+    fontSize: '18px',
+    fontWeight: 600,
+    color: 'rgba(255,255,255,0.90)',
     letterSpacing: '-0.3px',
-    fontFamily: 'system-ui, sans-serif',
+    fontFamily: FONT,
   },
   subtitle: {
-    margin: '0 0 24px',
-    fontSize: '13px',
-    color: 'rgba(255, 255, 255, 0.4)',
-    lineHeight: 1.5,
-    fontFamily: 'system-ui, sans-serif',
+    fontSize: '11px',
+    color: 'rgba(255,255,255,0.28)',
+    lineHeight: 1.55,
+    fontFamily: FONT,
   },
-  successBlock: {
+  fileRow: {
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
-    padding: '10px 12px',
-    background: 'rgba(74, 222, 128, 0.08)',
-    border: '1px solid rgba(74, 222, 128, 0.2)',
-    borderRadius: '8px',
-    marginBottom: '16px',
+    borderBottom: '1px solid rgba(255,255,255,0.08)',
+    paddingBottom: '12px',
   },
-  successIcon: {
-    fontSize: '13px',
-    color: '#4ade80',
-  },
-  successName: {
+  fileCheck: {
     fontSize: '12px',
-    color: '#4ade80',
-    fontFamily: 'system-ui, sans-serif',
+    color: '#10b981',
+    fontFamily: FONT,
+  },
+  fileName: {
+    fontSize: '12px',
+    color: 'rgba(255,255,255,0.55)',
+    fontFamily: FONT,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap' as const,
+    whiteSpace: 'nowrap',
   },
-  errorText: {
-    margin: '0 0 12px',
-    fontSize: '12px',
-    color: '#f87171',
-    fontFamily: 'system-ui, sans-serif',
+  error: {
+    margin: 0,
+    fontSize: '11px',
+    color: '#f43f5e',
+    fontFamily: FONT,
   },
   actions: {
     display: 'flex',
-    flexDirection: 'column' as const,
+    flexDirection: 'column',
     gap: '8px',
   },
   primaryBtn: {
     width: '100%',
     padding: '11px',
-    background: 'rgba(255, 255, 255, 0.9)',
+    background: 'rgba(255,255,255,0.88)',
     border: 'none',
-    borderRadius: '8px',
-    color: '#08080e',
+    borderRadius: '6px',
+    color: '#07070b',
     fontSize: '13px',
     fontWeight: 600,
     cursor: 'pointer',
-    fontFamily: 'system-ui, sans-serif',
+    fontFamily: FONT,
+    transition: 'background 120ms ease, transform 100ms ease',
+    letterSpacing: '-0.1px',
   },
   disabledBtn: {
-    background: 'rgba(255, 255, 255, 0.25)',
+    background: 'rgba(255,255,255,0.20)',
     cursor: 'not-allowed',
   },
-  skipBtn: {
+  ghostBtn: {
     width: '100%',
     padding: '10px',
     background: 'transparent',
     border: 'none',
-    color: 'rgba(255, 255, 255, 0.3)',
-    fontSize: '12px',
+    color: 'rgba(255,255,255,0.22)',
+    fontSize: '11px',
     cursor: 'pointer',
-    fontFamily: 'system-ui, sans-serif',
+    fontFamily: FONT,
+    transition: 'color 120ms ease',
+    letterSpacing: '0.1px',
   },
 };

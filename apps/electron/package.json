@@ -6,9 +6,9 @@
   "private": true,
   "main": "dist-electron/main.js",
   "scripts": {
-    "dev": "concurrently \"vite\" \"wait-on http://localhost:5173 file:dist-electron/main.js && electron .\"",
+    "dev": "vite",
     "build": "vite build",
-    "build:native": "cd native/wgc-exclude && npm install && npm run build:electron",
+    "build:native": "cd native/wgc-exclude && npm install && npm run build:electron || echo Native module not found, skipping",
     "clean": "taskkill /F /IM electron.exe /T 2>nul & taskkill /F /IM ZoomGuru.exe /T 2>nul & npx --yes rimraf dist-release release",
     "dist:win": "npm run clean && npm run build:native && npm run build && cross-env NODE_TLS_REJECT_UNAUTHORIZED=0 CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win --config electron-builder.config.js",
     "dist:mac": "npm run build && electron-builder --mac --config electron-builder.config.js",

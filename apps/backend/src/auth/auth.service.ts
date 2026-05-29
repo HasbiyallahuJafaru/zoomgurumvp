@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { getDB } from '../database/db';
@@ -24,6 +24,36 @@ export interface LoginResult {
 @Injectable()
 export class AuthService {
   constructor(private jwtService: JwtService) {}
+
+  async register(email: string, name: string, password: string): Promise<LoginResult> {
+    const sql = getDB();
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    let rows: UserRow[];
+    try {
+      rows = (await sql`
+        INSERT INTO users (email, name, password_hash)
+        VALUES (${email}, ${name}, ${passwordHash})
+        RETURNING id, email, name, username, password_hash
+      `) as UserRow[];
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message.includes('unique')) {
+        throw new ConflictException('Email already in use');
+      }
+      throw err;
+    }
+
+    const user = rows[0];
+    const accessToken = this.jwtService.sign(
+      { sub: user.id, email: user.email },
+      { expiresIn: '30d' },
+    );
+
+    return {
+      accessToken,
+      user: { id: user.id, email: user.email, name: user.name, username: user.username },
+    };
+  }
 
   async login(identifier: string, password: string): Promise<LoginResult> {
     const sql = getDB();

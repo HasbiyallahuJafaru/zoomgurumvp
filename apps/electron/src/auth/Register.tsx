@@ -1,21 +1,21 @@
 import { useState, type FormEvent, type CSSProperties } from 'react';
 
-interface LoginProps {
-  onLogin: (user: any) => void;
-  onShowRegister: () => void;
+interface RegisterProps {
+  onRegistered: () => void;
+  onShowLogin: () => void;
 }
 
-interface LoginApiResponse {
+interface RegisterApiResponse {
   accessToken?: string;
-  user?: unknown;
   message?: string;
 }
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 const FONT = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
 
-export default function Login({ onLogin, onShowRegister }: LoginProps) {
-  const [identifier, setIdentifier] = useState('');
+export default function Register({ onRegistered, onShowLogin }: RegisterProps) {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -23,24 +23,28 @@ export default function Login({ onLogin, onShowRegister }: LoginProps) {
   async function handleSubmit(e: FormEvent): Promise<void> {
     e.preventDefault();
     setError('');
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters');
+      return;
+    }
     setLoading(true);
     try {
       const deviceId = await window.zoomguru.getDeviceId();
-      const res = await fetch(`${API_URL}/auth/login`, {
+      const res = await fetch(`${API_URL}/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-Device-ID': deviceId,
         },
-        body: JSON.stringify({ email: identifier, password }),
+        body: JSON.stringify({ email, name, password }),
       });
-      const data: LoginApiResponse = await res.json();
+      const data: RegisterApiResponse = await res.json();
       if (!res.ok) {
-        setError(data.message ?? 'Invalid credentials');
+        setError(data.message ?? 'Registration failed');
         return;
       }
       localStorage.setItem('access_token', data.accessToken ?? '');
-      onLogin(data.user);
+      onRegistered();
     } catch {
       setError('Cannot reach backend. Is it running?');
     } finally {
@@ -97,27 +101,39 @@ export default function Login({ onLogin, onShowRegister }: LoginProps) {
         <div style={s.content}>
           <div style={s.brand}>
             <span style={s.brandName}>ZoomGuru</span>
-            <span style={s.brandTag}>Your invisible interview edge</span>
+            <span style={s.brandTag}>Create your account</span>
           </div>
 
           <form onSubmit={(e) => { void handleSubmit(e); }} style={s.form}>
             <input
               className="zg-field"
               type="text"
-              placeholder="Email or username"
-              value={identifier}
-              onChange={(e) => setIdentifier(e.target.value)}
+              placeholder="Full name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
               disabled={loading}
-              autoComplete="username"
+              autoComplete="name"
+              required
+            />
+            <input
+              className="zg-field"
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              disabled={loading}
+              autoComplete="email"
+              required
             />
             <input
               className="zg-field"
               type="password"
-              placeholder="Password"
+              placeholder="Password — 8 characters min"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               disabled={loading}
-              autoComplete="current-password"
+              autoComplete="new-password"
+              required
             />
 
             {error && <p style={s.error}>{error}</p>}
@@ -128,14 +144,14 @@ export default function Login({ onLogin, onShowRegister }: LoginProps) {
               disabled={loading}
               style={{ ...s.submitBtn, ...(loading ? s.submitDisabled : {}) }}
             >
-              {loading ? 'Signing in…' : 'Sign In'}
+              {loading ? 'Creating account…' : 'Create Account'}
             </button>
           </form>
 
           <p style={s.switchText}>
-            No account?{' '}
-            <button className="zg-link" style={s.switchLink} onClick={onShowRegister}>
-              Sign up
+            Already have an account?{' '}
+            <button className="zg-link" style={s.switchLink} onClick={onShowLogin}>
+              Sign in
             </button>
           </p>
         </div>
