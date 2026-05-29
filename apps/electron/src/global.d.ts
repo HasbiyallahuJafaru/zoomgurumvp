@@ -12,6 +12,7 @@ interface ZoomGuruBridge {
   captureScreen(): Promise<string>;
   getDeviceId(): Promise<string>;
   hideWindow(): Promise<void>;
+  quitApp(): Promise<void>;
   requestMicPermission(): Promise<boolean>;
   parseCV(): Promise<CvResult | CvError | null>;
   loadCV(): Promise<CvResult | null>;

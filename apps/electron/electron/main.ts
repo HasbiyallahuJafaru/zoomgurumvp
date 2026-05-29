@@ -173,6 +173,11 @@ function registerIpcHandlers(): void {
     mainWindow?.hide();
   });
 
+  ipcMain.handle('window:quit', () => {
+    isQuitting = true;
+    app.quit();
+  });
+
   ipcMain.handle('device:fingerprint', () => {
     return fingerprint;
   });

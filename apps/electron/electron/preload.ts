@@ -16,6 +16,9 @@ contextBridge.exposeInMainWorld('zoomguru', {
   hideWindow: (): Promise<void> =>
     ipcRenderer.invoke('window:hide'),
 
+  quitApp: (): Promise<void> =>
+    ipcRenderer.invoke('window:quit'),
+
   requestMicPermission: (): Promise<boolean> =>
     ipcRenderer.invoke('permissions:request-mic'),
 

@@ -50,7 +50,7 @@ export default function Login({ onLogin }: LoginProps) {
     <div style={s.root}>
       <button
         style={s.closeBtn}
-        onClick={() => { void window.zoomguru.hideWindow(); }}
+        onClick={() => { void window.zoomguru.quitApp(); }}
         aria-label="Close"
       >
         ✕
