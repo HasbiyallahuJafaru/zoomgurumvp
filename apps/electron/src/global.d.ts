@@ -3,6 +3,7 @@ interface ZoomGuruBridge {
   captureScreen(): Promise<string>;
   getDeviceId(): Promise<string>;
   hideWindow(): Promise<void>;
+  requestMicPermission(): Promise<boolean>;
 }
 
 declare global {

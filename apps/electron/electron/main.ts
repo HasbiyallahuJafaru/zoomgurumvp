@@ -7,6 +7,7 @@ import {
   Menu,
   screen as electronScreen,
   session,
+  systemPreferences,
 } from 'electron';
 import path from 'path';
 import Store from 'electron-store';
@@ -169,6 +170,14 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle('device:fingerprint', () => {
     return fingerprint;
+  });
+
+  ipcMain.handle('permissions:request-mic', async () => {
+    if (process.platform === 'darwin') {
+      return await systemPreferences.askForMediaAccess('microphone');
+    }
+    // On Windows/Linux the Chromium session permission handler covers mic access
+    return true;
   });
 }
 

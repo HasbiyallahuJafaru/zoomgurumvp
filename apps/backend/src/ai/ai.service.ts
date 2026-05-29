@@ -3,8 +3,12 @@ import { ServerResponse } from 'http';
 
 const BASE_SYSTEM_PROMPT = `You are ZoomGuru, an AI interview assistant. Answer the interview question clearly and confidently, as if speaking directly to the interviewer. Be concise and professional. For coding: show approach then code. For behavioral: use STAR format naturally. Keep answers to 3-6 sentences unless more depth is needed.`;
 
+const VISION_SYSTEM_PROMPT = `You are ZoomGuru, an AI interview assistant. The user has shared a screenshot of their screen during a job interview. Analyze what you see and provide a concise, helpful response — answer any visible question, explain any visible code or diagram, or describe what is on screen. Be direct and professional.`;
+
 const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions';
 const GROQ_TRANSCRIBE_URL = 'https://api.groq.com/openai/v1/audio/transcriptions';
+const GROQ_VISION_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const GROQ_VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
 
 interface DeepSeekDelta {
   content?: string | null;
@@ -13,6 +17,14 @@ interface DeepSeekDelta {
 
 interface DeepSeekChunk {
   choices: Array<{ delta: DeepSeekDelta }>;
+}
+
+interface GroqDelta {
+  content?: string | null;
+}
+
+interface GroqChunk {
+  choices: Array<{ delta: GroqDelta; finish_reason?: string | null }>;
 }
 
 @Injectable()
@@ -125,6 +137,96 @@ export class AiService {
     }
   }
 
+  private async streamToGroqVision(params: {
+    imageBase64: string;
+    reply: ServerResponse;
+  }): Promise<void> {
+    const { imageBase64, reply } = params;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30_000);
+
+    try {
+      const response = await fetch(GROQ_VISION_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${process.env.GROQ_API_KEY ?? ''}`,
+        },
+        body: JSON.stringify({
+          model: GROQ_VISION_MODEL,
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'image_url',
+                  image_url: { url: `data:image/png;base64,${imageBase64}` },
+                },
+                {
+                  type: 'text',
+                  text: VISION_SYSTEM_PROMPT,
+                },
+              ],
+            },
+          ],
+          stream: true,
+          max_tokens: 800,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!response.body) {
+        reply.write(`data: ${JSON.stringify({ chunk: 'No response from vision AI.', done: false })}\n\n`);
+        reply.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+        reply.end();
+        return;
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let streaming = true;
+
+      while (streaming) {
+        const result = await reader.read();
+        if (result.done) break;
+
+        buffer += decoder.decode(result.value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith('data: ')) continue;
+          const data = trimmed.slice(6);
+          if (data === '[DONE]') { streaming = false; break; }
+          try {
+            const parsed = JSON.parse(data) as GroqChunk;
+            const content = parsed.choices[0]?.delta?.content;
+            if (content) {
+              reply.write(`data: ${JSON.stringify({ chunk: content, done: false })}\n\n`);
+            }
+          } catch {
+            // skip malformed SSE chunks
+          }
+        }
+      }
+
+      reply.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+      reply.end();
+    } catch (err) {
+      const message =
+        err instanceof Error && err.name === 'AbortError'
+          ? 'Request timed out. Please try again.'
+          : 'Vision AI error. Please try again.';
+      reply.write(`data: ${JSON.stringify({ chunk: message, done: false })}\n\n`);
+      reply.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+      reply.end();
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   async streamAnswer(params: {
     transcript: string;
     reply: ServerResponse;
@@ -137,14 +239,7 @@ export class AiService {
     image: string;
     reply: ServerResponse;
   }): Promise<void> {
-    // DeepSeek has no vision capability. Stream a clear explanation to the overlay.
-    const { reply } = params;
-    const message =
-      'Screenshot analysis requires a vision model — DeepSeek does not support image input. ' +
-      'Describe what you see on screen and press ⌘⇧A (Listen) to get AI assistance instead.';
-    reply.write(`data: ${JSON.stringify({ chunk: message, done: false })}\n\n`);
-    reply.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-    reply.end();
+    await this.streamToGroqVision({ imageBase64: params.image, reply: params.reply });
   }
 
   async transcribe(params: { audio: string }): Promise<string> {
@@ -155,7 +250,7 @@ export class AiService {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const formData = new (FormData as any)() as FormData;
     formData.append('file', audioBlob, 'audio.webm');
-    formData.append('model', 'distil-whisper-large-v3-en');
+    formData.append('model', 'whisper-large-v3-turbo');
     formData.append('response_format', 'json');
     formData.append('language', 'en');
 

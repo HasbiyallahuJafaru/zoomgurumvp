@@ -26,6 +26,7 @@ export default function Overlay() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [micGranted, setMicGranted] = useState(true);
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
@@ -130,6 +131,7 @@ export default function Overlay() {
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch {
+      setMicGranted(false);
       setAnswer('⚠ Mic access denied. Allow microphone in system settings.');
       return;
     }
@@ -176,6 +178,10 @@ export default function Overlay() {
             },
             body: JSON.stringify({ audio: base64 }),
           });
+          if (!res.ok) {
+            setAnswer('⚠ Transcription failed. Check backend logs.');
+            return;
+          }
           const data = await res.json() as { transcript?: string };
           if (data.transcript?.trim()) {
             void streamAnswer(data.transcript);
@@ -218,6 +224,18 @@ export default function Overlay() {
     // Pre-warm device ID cache so first query has zero IPC delay
     void getCachedDeviceId();
 
+    // Request mic permission on mount — triggers macOS OS dialog; probes
+    // browser-level access on Windows so the Chromium prompt fires upfront
+    void window.zoomguru.requestMicPermission().then((osGranted) => {
+      if (!osGranted) {
+        setMicGranted(false);
+        return;
+      }
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then((s) => { s.getTracks().forEach((t) => t.stop()); setMicGranted(true); })
+        .catch(() => setMicGranted(false));
+    });
+
     window.zoomguru.onTrigger('listen', () => { void handleListenRef.current(); });
     window.zoomguru.onTrigger('screenshot', () => { void handleScreenshotRef.current(); });
     window.zoomguru.onTrigger('clear', () => handleClearRef.current());
@@ -242,6 +260,7 @@ export default function Overlay() {
         <div style={s.headerRight}>
           {isListening && <span style={s.statusGreen}>● Recording...</span>}
           {isStreaming && <span style={s.statusBlue}>● Thinking...</span>}
+          {!micGranted && <span style={s.statusRed}>⚠ Mic denied</span>}
           {!isOnline && <span style={s.statusRed}>⚠ No connection</span>}
           <button
             style={s.closeBtn}
