@@ -4,6 +4,7 @@ import { ServerResponse } from 'http';
 const BASE_SYSTEM_PROMPT = `You are ZoomGuru, an AI interview assistant. Answer the interview question clearly and confidently, as if speaking directly to the interviewer. Be concise and professional. For coding: show approach then code. For behavioral: use STAR format naturally. Keep answers to 3-6 sentences unless more depth is needed.`;
 
 const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions';
+const GROQ_TRANSCRIBE_URL = 'https://api.groq.com/openai/v1/audio/transcriptions';
 
 interface DeepSeekDelta {
   content?: string | null;
@@ -144,5 +145,35 @@ export class AiService {
     reply.write(`data: ${JSON.stringify({ chunk: message, done: false })}\n\n`);
     reply.write(`data: ${JSON.stringify({ done: true })}\n\n`);
     reply.end();
+  }
+
+  async transcribe(params: { audio: string }): Promise<string> {
+    const audioBuffer = Buffer.from(params.audio, 'base64');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const audioBlob = new (Blob as any)([audioBuffer], { type: 'audio/webm' }) as Blob;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const formData = new (FormData as any)() as FormData;
+    formData.append('file', audioBlob, 'audio.webm');
+    formData.append('model', 'whisper-large-v3-turbo');
+    formData.append('response_format', 'json');
+    formData.append('language', 'en');
+
+    const response = await fetch(GROQ_TRANSCRIBE_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.GROQ_API_KEY ?? ''}`,
+      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      body: formData as any,
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Groq transcription failed (${response.status}): ${errText}`);
+    }
+
+    const data = await response.json() as { text?: string };
+    return data.text?.trim() ?? '';
   }
 }

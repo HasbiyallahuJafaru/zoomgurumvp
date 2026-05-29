@@ -3,38 +3,28 @@ import AnswerStream from './AnswerStream';
 
 type ElectronStyle = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 
-interface SpeechRecognitionAlternative {
-  transcript: string;
-}
-interface SpeechRecognitionResult {
-  [index: number]: SpeechRecognitionAlternative;
-}
-interface SpeechRecognitionResultList {
-  [index: number]: SpeechRecognitionResult;
-}
-interface SpeechRecognitionEventLocal extends Event {
-  readonly results: SpeechRecognitionResultList;
-}
-interface SpeechRecognitionInstance {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  onresult: ((event: SpeechRecognitionEventLocal) => void) | null;
-  onerror: ((event: Event) => void) | null;
-  onend: (() => void) | null;
-  start(): void;
-}
-type SpeechRecognitionCtorType = new () => SpeechRecognitionInstance;
-
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result as string;
+      resolve(result.split(',')[1]);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
 
 export default function Overlay() {
   const [answer, setAnswer] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [lastTranscript, setLastTranscript] = useState('');
-  const [lastImage, setLastImage] = useState('');
+
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<BlobPart[]>([]);
 
   const handleListenRef = useRef<() => void>(() => {});
   const handleScreenshotRef = useRef<() => void>(() => {});
@@ -45,7 +35,6 @@ export default function Overlay() {
   async function streamAnswer(transcript: string): Promise<void> {
     setAnswer('');
     setIsStreaming(true);
-    setLastTranscript(transcript);
     try {
       const token = localStorage.getItem('access_token') || '';
       const deviceId = await window.zoomguru.getDeviceId();
@@ -126,48 +115,99 @@ export default function Overlay() {
   // --- handlers (updated every render so refs always hold current state) ---
 
   handleListenRef.current = async () => {
-    if (isStreaming || isListening) return;
+    // If already recording, stop → triggers onstop → transcription
+    if (isListening && recorderRef.current?.state === 'recording') {
+      recorderRef.current.stop();
+      return;
+    }
+
+    if (isStreaming) return;
+
+    let stream: MediaStream;
     try {
-      await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch {
       setAnswer('⚠ Mic access denied. Allow microphone in system settings.');
       return;
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const SpeechRecognitionCtor = ((window as any).SpeechRecognition ||
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (window as any).webkitSpeechRecognition) as SpeechRecognitionCtorType | undefined;
-    if (!SpeechRecognitionCtor) {
-      setAnswer('⚠ Speech recognition not available.');
-      return;
-    }
-    setIsListening(true);
-    const recognition = new SpeechRecognitionCtor();
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.lang = 'en-US';
-    recognition.onresult = (event: SpeechRecognitionEventLocal) => {
-      const transcript = event.results[0]?.[0]?.transcript ?? '';
-      setIsListening(false);
-      void streamAnswer(transcript);
+
+    chunksRef.current = [];
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      ? 'audio/webm;codecs=opus'
+      : 'audio/webm';
+    const recorder = new MediaRecorder(stream, { mimeType });
+
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunksRef.current.push(e.data);
     };
-    recognition.onerror = () => setIsListening(false);
-    recognition.onend = () => setIsListening(false);
-    recognition.start();
+
+    recorder.onstop = () => {
+      stream.getTracks().forEach((t) => t.stop());
+      setIsListening(false);
+
+      void (async () => {
+        const blob = new Blob(chunksRef.current, { type: mimeType });
+        if (blob.size === 0) {
+          setAnswer('⚠ No audio captured. Speak and try again.');
+          return;
+        }
+
+        let base64: string;
+        try {
+          base64 = await blobToBase64(blob);
+        } catch {
+          setAnswer('⚠ Audio encoding error. Try again.');
+          return;
+        }
+
+        const token = localStorage.getItem('access_token') || '';
+        const deviceId = await window.zoomguru.getDeviceId();
+
+        try {
+          const res = await fetch(`${API_URL}/ai/transcribe`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+              'X-Device-ID': deviceId,
+            },
+            body: JSON.stringify({ audio: base64 }),
+          });
+          const data = await res.json() as { transcript?: string };
+          if (data.transcript?.trim()) {
+            void streamAnswer(data.transcript);
+          } else {
+            setAnswer('⚠ No speech detected. Speak clearly and try again.');
+          }
+        } catch {
+          setAnswer('⚠ Transcription error. Check your connection.');
+        }
+      })();
+    };
+
+    recorderRef.current = recorder;
+    setIsListening(true);
+    recorder.start();
+
+    // Safety auto-stop after 30 seconds
+    const autoStop = setTimeout(() => {
+      if (recorder.state === 'recording') recorder.stop();
+    }, 30_000);
+    recorder.addEventListener('stop', () => clearTimeout(autoStop), { once: true });
   };
 
   handleScreenshotRef.current = async () => {
     if (isStreaming) return;
     const imageBase64 = await window.zoomguru.captureScreen();
-    setLastImage(imageBase64);
     await streamScreenshot(imageBase64);
   };
 
   handleClearRef.current = () => {
+    if (recorderRef.current?.state === 'recording') recorderRef.current.stop();
     setAnswer('');
     setIsStreaming(false);
-    setLastTranscript('');
-    setLastImage('');
+    setIsListening(false);
+    chunksRef.current = [];
   };
 
   // --- mount-only effect ---
@@ -188,9 +228,6 @@ export default function Overlay() {
     };
   }, []);
 
-  void lastTranscript;
-  void lastImage;
-
   // --- render ---
 
   return (
@@ -198,7 +235,7 @@ export default function Overlay() {
       <div style={s.header}>
         <span style={s.headerTitle}>ZoomGuru</span>
         <div style={s.headerRight}>
-          {isListening && <span style={s.statusGreen}>● Listening...</span>}
+          {isListening && <span style={s.statusGreen}>● Recording...</span>}
           {isStreaming && <span style={s.statusBlue}>● Thinking...</span>}
           {!isOnline && <span style={s.statusRed}>⚠ No connection</span>}
           <button
@@ -214,21 +251,23 @@ export default function Overlay() {
       <AnswerStream answer={answer} isStreaming={isStreaming} />
 
       <div style={s.footer}>
+        {/* Listen / Stop recording */}
         <button
           style={{
             ...s.footerBtn,
-            ...(isListening ? s.footerBtnActive : {}),
-            opacity: isStreaming || isListening ? 0.4 : 1,
+            ...(isListening ? s.footerBtnRecording : {}),
+            opacity: isStreaming ? 0.4 : 1,
           }}
           onClick={() => { void handleListenRef.current(); }}
-          disabled={isStreaming || isListening}
-          aria-label="Listen"
+          disabled={isStreaming}
+          aria-label={isListening ? 'Stop recording' : 'Start listening'}
         >
-          <span style={s.footerIcon}>🎤</span>
-          <span style={s.footerLabel}>Listen</span>
+          <span style={s.footerIcon}>{isListening ? '⏹' : '🎤'}</span>
+          <span style={s.footerLabel}>{isListening ? 'Stop' : 'Listen'}</span>
           <span style={s.footerShortcut}>⌘⇧A</span>
         </button>
 
+        {/* Screenshot */}
         <button
           style={{
             ...s.footerBtn,
@@ -243,6 +282,7 @@ export default function Overlay() {
           <span style={s.footerShortcut}>⌘⇧S</span>
         </button>
 
+        {/* Clear */}
         <button
           style={s.footerBtn}
           onClick={() => handleClearRef.current()}
@@ -338,9 +378,9 @@ const s: Record<string, ElectronStyle> = {
     transition: 'opacity 0.15s ease',
     WebkitAppRegion: 'no-drag',
   },
-  footerBtnActive: {
-    background: 'rgba(74, 222, 128, 0.12)',
-    border: '1px solid rgba(74, 222, 128, 0.30)',
+  footerBtnRecording: {
+    background: 'rgba(239, 68, 68, 0.15)',
+    border: '1px solid rgba(239, 68, 68, 0.40)',
   },
   footerIcon: {
     fontSize: '14px',

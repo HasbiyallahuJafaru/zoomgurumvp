@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Req, Res, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Res, UseGuards, HttpCode } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { FastifyReply } from 'fastify';
 import { AiService } from './ai.service';
@@ -38,5 +38,15 @@ export class AiController {
       image: body.image,
       reply: reply.raw,
     });
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @HttpCode(200)
+  @Post('transcribe')
+  async transcribe(
+    @Body() body: { audio: string },
+  ): Promise<{ transcript: string }> {
+    const transcript = await this.aiService.transcribe({ audio: body.audio });
+    return { transcript };
   }
 }
