@@ -42,7 +42,7 @@ export class AiService {
         { role: 'user', content: transcript },
       ],
       stream: true,
-      max_tokens: model === 'deepseek-reasoner' ? 4000 : 1500,
+      max_tokens: model === 'deepseek-reasoner' ? 4000 : 800,
     };
 
     if (model === 'deepseek-chat') {
@@ -155,7 +155,7 @@ export class AiService {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const formData = new (FormData as any)() as FormData;
     formData.append('file', audioBlob, 'audio.webm');
-    formData.append('model', 'whisper-large-v3-turbo');
+    formData.append('model', 'distil-whisper-large-v3-en');
     formData.append('response_format', 'json');
     formData.append('language', 'en');
 

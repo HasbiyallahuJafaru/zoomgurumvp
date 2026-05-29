@@ -5,13 +5,17 @@ type ElectronStyle = CSSProperties & { WebkitAppRegion?: 'drag' | 'no-drag' };
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
+// Module-level cache — one IPC roundtrip total, instant on every subsequent call
+let _deviceId: string | null = null;
+async function getCachedDeviceId(): Promise<string> {
+  if (!_deviceId) _deviceId = await window.zoomguru.getDeviceId();
+  return _deviceId;
+}
+
 function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onloadend = () => {
-      const result = reader.result as string;
-      resolve(result.split(',')[1]);
-    };
+    reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
     reader.onerror = reject;
     reader.readAsDataURL(blob);
   });
@@ -37,7 +41,7 @@ export default function Overlay() {
     setIsStreaming(true);
     try {
       const token = localStorage.getItem('access_token') || '';
-      const deviceId = await window.zoomguru.getDeviceId();
+      const deviceId = await getCachedDeviceId();
       const response = await fetch(`${API_URL}/ai/stream`, {
         method: 'POST',
         headers: {
@@ -77,7 +81,7 @@ export default function Overlay() {
     setIsStreaming(true);
     try {
       const token = localStorage.getItem('access_token') || '';
-      const deviceId = await window.zoomguru.getDeviceId();
+      const deviceId = await getCachedDeviceId();
       const response = await fetch(`${API_URL}/ai/screenshot`, {
         method: 'POST',
         headers: {
@@ -112,10 +116,9 @@ export default function Overlay() {
     }
   }
 
-  // --- handlers (updated every render so refs always hold current state) ---
+  // --- handlers ---
 
   handleListenRef.current = async () => {
-    // If already recording, stop → triggers onstop → transcription
     if (isListening && recorderRef.current?.state === 'recording') {
       recorderRef.current.stop();
       return;
@@ -152,16 +155,16 @@ export default function Overlay() {
           return;
         }
 
+        // Parallelize encoding and device ID lookup
+        const token = localStorage.getItem('access_token') || '';
         let base64: string;
+        let deviceId: string;
         try {
-          base64 = await blobToBase64(blob);
+          [base64, deviceId] = await Promise.all([blobToBase64(blob), getCachedDeviceId()]);
         } catch {
           setAnswer('⚠ Audio encoding error. Try again.');
           return;
         }
-
-        const token = localStorage.getItem('access_token') || '';
-        const deviceId = await window.zoomguru.getDeviceId();
 
         try {
           const res = await fetch(`${API_URL}/ai/transcribe`, {
@@ -189,7 +192,6 @@ export default function Overlay() {
     setIsListening(true);
     recorder.start();
 
-    // Safety auto-stop after 30 seconds
     const autoStop = setTimeout(() => {
       if (recorder.state === 'recording') recorder.stop();
     }, 30_000);
@@ -213,6 +215,9 @@ export default function Overlay() {
   // --- mount-only effect ---
 
   useEffect(() => {
+    // Pre-warm device ID cache so first query has zero IPC delay
+    void getCachedDeviceId();
+
     window.zoomguru.onTrigger('listen', () => { void handleListenRef.current(); });
     window.zoomguru.onTrigger('screenshot', () => { void handleScreenshotRef.current(); });
     window.zoomguru.onTrigger('clear', () => handleClearRef.current());
@@ -251,7 +256,6 @@ export default function Overlay() {
       <AnswerStream answer={answer} isStreaming={isStreaming} />
 
       <div style={s.footer}>
-        {/* Listen / Stop recording */}
         <button
           style={{
             ...s.footerBtn,
@@ -267,7 +271,6 @@ export default function Overlay() {
           <span style={s.footerShortcut}>⌘⇧A</span>
         </button>
 
-        {/* Screenshot */}
         <button
           style={{
             ...s.footerBtn,
@@ -282,7 +285,6 @@ export default function Overlay() {
           <span style={s.footerShortcut}>⌘⇧S</span>
         </button>
 
-        {/* Clear */}
         <button
           style={s.footerBtn}
           onClick={() => handleClearRef.current()}
