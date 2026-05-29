@@ -212,7 +212,7 @@ const s: Record<string, CSSProperties> = {
     width: '100%',
     padding: '11px',
     marginTop: '4px',
-    background: 'rgba(255,255,255,0.88)',
+    background: '#ffffff',
     border: 'none',
     borderRadius: '6px',
     color: '#07070b',

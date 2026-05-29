@@ -207,7 +207,7 @@ const s: Record<string, CSSProperties> = {
   primaryBtn: {
     width: '100%',
     padding: '11px',
-    background: 'rgba(255,255,255,0.88)',
+    background: '#ffffff',
     border: 'none',
     borderRadius: '6px',
     color: '#07070b',

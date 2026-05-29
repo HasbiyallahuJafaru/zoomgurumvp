@@ -531,11 +531,11 @@ export default function Overlay({ onLogout }: { onLogout: () => void }) {
             {/* Buttons */}
             <button
               className="zg-ibtn"
-              style={s.iconBtn}
+              style={s.logoutBtn}
               onClick={() => { stopAutoMode(); onLogout(); }}
               aria-label="Log out"
             >
-              ⏏
+              Logout
             </button>
             <button
               className="zg-ibtn"
@@ -647,9 +647,9 @@ const s: Record<string, ElectronStyle> = {
     inset: 0,
     display: 'flex',
     flexDirection: 'column',
-    background: 'rgba(7, 7, 11, 0.92)',
-    backdropFilter: 'blur(28px) saturate(160%)',
-    WebkitBackdropFilter: 'blur(28px) saturate(160%)',
+    background: 'rgba(7, 7, 11, 0.60)',
+    backdropFilter: 'blur(32px) saturate(180%)',
+    WebkitBackdropFilter: 'blur(32px) saturate(180%)',
     borderRadius: '16px',
     border: '1px solid rgba(255,255,255,0.07)',
     fontFamily: FONT,
@@ -747,6 +747,21 @@ const s: Record<string, ElectronStyle> = {
     WebkitAppRegion: 'no-drag',
     fontFamily: FONT,
   },
+  logoutBtn: {
+    background: 'transparent',
+    border: 'none',
+    color: 'rgba(255,255,255,0.28)',
+    fontSize: '10px',
+    fontWeight: 500,
+    letterSpacing: '0.2px',
+    lineHeight: '1',
+    cursor: 'pointer',
+    padding: '3px 6px',
+    borderRadius: '4px',
+    transition: 'background 120ms ease, color 120ms ease',
+    WebkitAppRegion: 'no-drag',
+    fontFamily: FONT,
+  },
 
   // Session cap
   capNotice: {
@@ -780,7 +795,7 @@ const s: Record<string, ElectronStyle> = {
   },
   newSessionBtn: {
     padding: '8px 22px',
-    background: 'rgba(255,255,255,0.88)',
+    background: '#ffffff',
     border: 'none',
     borderRadius: '6px',
     color: '#07070b',

@@ -6,15 +6,53 @@ interface AnswerStreamProps {
 }
 
 const FONT = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
+const SCROLL_PX_PER_FRAME = 1.0; // ~60px/s at 60fps
 
 export default function AnswerStream({ answer, isStreaming }: AnswerStreamProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const rafRef = useRef<number | null>(null);
+  const userScrolledRef = useRef(false);
 
+  // Detect manual scroll — pause auto-scroll when user scrolls up,
+  // resume when they scroll back to the bottom
+  function handleScroll() {
+    if (!scrollRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+    const nearBottom = scrollHeight - clientHeight - scrollTop < 24;
+    userScrolledRef.current = !nearBottom;
+  }
+
+  // Auto-scroll rAF loop — runs only while streaming
   useEffect(() => {
-    if (scrollRef.current) {
+    if (!isStreaming) {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      userScrolledRef.current = false;
+      return;
+    }
+
+    function tick() {
+      if (scrollRef.current && !userScrolledRef.current) {
+        const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+        const gap = scrollHeight - clientHeight - scrollTop;
+        if (gap > 0) {
+          scrollRef.current.scrollTop += Math.min(SCROLL_PX_PER_FRAME, gap);
+        }
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    }
+
+    rafRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [isStreaming]);
+
+  // Instant jump to bottom when a non-streaming answer loads (e.g. error messages)
+  useEffect(() => {
+    if (!isStreaming && scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [answer]);
+  }, [answer, isStreaming]);
 
   const isEmpty = !answer && !isStreaming;
 
@@ -25,14 +63,19 @@ export default function AnswerStream({ answer, isStreaming }: AnswerStreamProps)
           0%, 49% { opacity: 1 }
           50%, 100% { opacity: 0 }
         }
-        .zg-scroll::-webkit-scrollbar { width: 3px; }
+        .zg-scroll::-webkit-scrollbar { width: 2px; }
         .zg-scroll::-webkit-scrollbar-track { background: transparent; }
         .zg-scroll::-webkit-scrollbar-thumb {
-          background: rgba(255,255,255,0.10);
+          background: rgba(255,255,255,0.08);
           border-radius: 2px;
         }
       `}</style>
-      <div ref={scrollRef} className="zg-scroll" style={s.container}>
+      <div
+        ref={scrollRef}
+        className="zg-scroll"
+        style={s.container}
+        onScroll={handleScroll}
+      >
         {isEmpty ? (
           <p style={s.empty}>Press ⌘⇧A to listen · ⌘⇧S for screenshot</p>
         ) : (
