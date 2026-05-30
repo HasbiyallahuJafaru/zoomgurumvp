@@ -42,4 +42,7 @@ contextBridge.exposeInMainWorld('zoomguru', {
 
   clearJD: (): Promise<void> =>
     ipcRenderer.invoke('jd:clear'),
+
+  openExternal: (url: string): Promise<void> =>
+    ipcRenderer.invoke('open-external', url),
 });

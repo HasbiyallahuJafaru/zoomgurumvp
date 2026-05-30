@@ -21,6 +21,7 @@ interface ZoomGuruBridge {
   saveJD(text: string): Promise<void>;
   loadJD(): Promise<string | null>;
   clearJD(): Promise<void>;
+  openExternal(url: string): Promise<void>;
 }
 
 declare global {

@@ -10,6 +10,7 @@ import {
   systemPreferences,
   dialog,
   desktopCapturer,
+  shell,
 } from 'electron';
 import path from 'path';
 import fs from 'fs';
@@ -279,6 +280,10 @@ if (!gotLock) {
 
     ipcMain.handle('jd:clear', () => {
       store.delete('jdText');
+    });
+
+    ipcMain.handle('open-external', (_event, url: string) => {
+      void shell.openExternal(url);
     });
   }
 

@@ -1,14 +1,115 @@
-import { type CSSProperties } from 'react';
+import { useState, useEffect, type CSSProperties } from 'react';
 
 interface DashboardProps {
   onContinue: () => void;
   onLogout: () => void;
 }
 
+type SubStatus = 'inactive' | 'active' | 'past_due' | 'cancelled';
+
+interface SubData {
+  status: SubStatus;
+  plan: 'monthly' | 'annual' | null;
+  daysRemaining: number | null;
+  currentPeriodEnd: string | null;
+}
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 const SANS  = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
 const SERIF = "'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif";
 
 export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
+  const [sub, setSub] = useState<SubData | null>(null);
+  const [loadingSub, setLoadingSub] = useState(true);
+  const [checkingOut, setCheckingOut] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'annual'>('monthly');
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const token = localStorage.getItem('access_token') || '';
+        const deviceId = await window.zoomguru.getDeviceId();
+        const res = await fetch(`${API_URL}/subscription/status`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'X-Device-ID': deviceId,
+          },
+        });
+        if (res.status === 401) { onLogout(); return; }
+        if (res.ok) {
+          const data = await res.json() as SubData;
+          setSub(data);
+        }
+      } finally {
+        setLoadingSub(false);
+      }
+    })();
+  }, []);
+
+  async function handleSubscribe(): Promise<void> {
+    setCheckingOut(true);
+    try {
+      const token = localStorage.getItem('access_token') || '';
+      const deviceId = await window.zoomguru.getDeviceId();
+      const res = await fetch(`${API_URL}/subscription/checkout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          'X-Device-ID': deviceId,
+        },
+        body: JSON.stringify({ plan: selectedPlan }),
+      });
+      if (res.status === 401) { onLogout(); return; }
+      if (!res.ok) return;
+      const data = await res.json() as { checkoutUrl: string };
+      await window.zoomguru.openExternal(data.checkoutUrl);
+    } finally {
+      setCheckingOut(false);
+    }
+  }
+
+  function statusBadgeStyle(): CSSProperties {
+    if (sub?.status === 'active') {
+      return { ...s.statusBadge, color: 'rgba(52,211,153,0.9)', background: 'rgba(52,211,153,0.12)' };
+    }
+    if (sub?.status === 'past_due') {
+      return { ...s.statusBadge, color: 'rgba(248,113,113,0.9)', background: 'rgba(248,113,113,0.12)' };
+    }
+    return s.statusBadge;
+  }
+
+  function statusLabel(): string {
+    if (loadingSub) return 'Loading…';
+    if (!sub) return '—';
+    if (sub.status === 'active') return 'Active';
+    if (sub.status === 'past_due') return 'Payment overdue';
+    if (sub.status === 'cancelled') return 'Cancelled';
+    return 'No active plan';
+  }
+
+  function daysLabel(): string {
+    if (loadingSub) return 'Loading…';
+    if (!sub || sub.daysRemaining === null) return '—';
+    if (sub.daysRemaining === 0) return 'Expired';
+    return `${sub.daysRemaining} days`;
+  }
+
+  function billingLabel(): string {
+    if (loadingSub) return 'Loading…';
+    if (!sub || !sub.plan) return '—';
+    return sub.plan === 'monthly' ? 'Monthly' : 'Annual';
+  }
+
+  const isSubscribeDisabled = loadingSub || sub?.status === 'active' || checkingOut;
+
+  function subscribeLabel(): string {
+    if (loadingSub) return 'Loading…';
+    if (sub?.status === 'active') return 'Active subscription';
+    if (checkingOut) return 'Opening…';
+    return 'Subscribe';
+  }
+
   return (
     <>
       <style>{`
@@ -16,6 +117,7 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
         .zg-primary:active:not(:disabled) { transform: scale(0.98); }
         .zg-ghost:hover { color: rgba(255,255,255,0.45) !important; }
         .zg-close:hover { color: rgba(255,255,255,0.50) !important; }
+        .zg-plan:hover { opacity: 0.85; }
       `}</style>
 
       <div style={s.root}>
@@ -39,27 +141,55 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
           <div style={s.card}>
             <div style={s.cardRow}>
               <span style={s.cardLabel}>Status</span>
-              <span style={s.statusBadge}>No active plan</span>
+              <span style={statusBadgeStyle()}>{statusLabel()}</span>
             </div>
 
             <div style={s.divider} />
 
             <div style={s.cardRow}>
               <span style={s.cardLabel}>Days remaining</span>
-              <span style={s.cardValue}>—</span>
+              <span style={s.cardValue}>{daysLabel()}</span>
             </div>
 
             <div style={s.divider} />
 
             <div style={s.cardRow}>
               <span style={s.cardLabel}>Billing</span>
-              <span style={s.cardValue}>Monthly / Annual</span>
+              <span style={s.cardValue}>{billingLabel()}</span>
             </div>
           </div>
 
-          {/* Subscribe button — payment provider not yet wired */}
-          <button className="zg-primary" style={s.subscribeBtn} disabled>
-            Subscribe — Coming soon
+          {/* Plan selector — hidden when active */}
+          {sub?.status !== 'active' && (
+            <div style={s.planSelector}>
+              <button
+                className="zg-plan"
+                style={selectedPlan === 'monthly' ? s.planBtnActive : s.planBtn}
+                onClick={() => setSelectedPlan('monthly')}
+              >
+                Monthly
+              </button>
+              <button
+                className="zg-plan"
+                style={selectedPlan === 'annual' ? s.planBtnActive : s.planBtn}
+                onClick={() => setSelectedPlan('annual')}
+              >
+                Annual
+              </button>
+            </div>
+          )}
+
+          {/* Subscribe button */}
+          <button
+            className="zg-primary"
+            style={{
+              ...s.subscribeBtn,
+              ...(isSubscribeDisabled ? s.subscribeBtnDisabled : s.subscribeBtnEnabled),
+            }}
+            disabled={isSubscribeDisabled}
+            onClick={() => { void handleSubscribe(); }}
+          >
+            {subscribeLabel()}
           </button>
 
           {/* Continue to app */}
@@ -118,7 +248,7 @@ const s: Record<string, CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'stretch',
-    gap: '20px',
+    gap: '16px',
   },
   brand: {
     display: 'flex',
@@ -179,19 +309,61 @@ const s: Record<string, CSSProperties> = {
     borderRadius: '4px',
     fontFamily: SANS,
   },
+  planSelector: {
+    display: 'flex',
+    border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: '6px',
+    overflow: 'hidden',
+  },
+  planBtn: {
+    flex: 1,
+    padding: '8px',
+    background: 'transparent',
+    border: 'none',
+    color: 'rgba(255,255,255,0.35)',
+    fontSize: '11px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    fontFamily: SANS,
+    letterSpacing: '0.1px',
+    transition: 'opacity 120ms ease',
+    textAlign: 'center',
+  },
+  planBtnActive: {
+    flex: 1,
+    padding: '8px',
+    background: 'rgba(255,255,255,0.92)',
+    border: 'none',
+    color: '#07070b',
+    fontSize: '11px',
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontFamily: SANS,
+    letterSpacing: '0.1px',
+    transition: 'opacity 120ms ease',
+    textAlign: 'center',
+  },
   subscribeBtn: {
     width: '100%',
     padding: '11px',
-    background: 'rgba(255,255,255,0.07)',
-    border: '1px solid rgba(255,255,255,0.10)',
     borderRadius: '6px',
-    color: 'rgba(255,255,255,0.28)',
     fontSize: '12px',
     fontWeight: 500,
-    cursor: 'not-allowed',
     fontFamily: SANS,
     letterSpacing: '0.1px',
     textAlign: 'center',
+    transition: 'opacity 120ms ease, transform 100ms ease',
+    border: '1px solid rgba(255,255,255,0.10)',
+  },
+  subscribeBtnEnabled: {
+    background: 'rgba(255,255,255,0.12)',
+    color: 'rgba(255,255,255,0.80)',
+    cursor: 'pointer',
+  },
+  subscribeBtnDisabled: {
+    background: 'rgba(255,255,255,0.07)',
+    color: 'rgba(255,255,255,0.28)',
+    cursor: 'not-allowed',
   },
   actions: {
     display: 'flex',

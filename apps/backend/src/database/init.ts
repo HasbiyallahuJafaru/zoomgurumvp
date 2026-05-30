@@ -24,6 +24,21 @@ export async function initDB(): Promise<void> {
         )
       `;
 
+      await sql`
+        CREATE TABLE IF NOT EXISTS subscriptions (
+          id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id                     UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          status                      TEXT NOT NULL DEFAULT 'inactive',
+          plan                        TEXT,
+          current_period_start        TIMESTAMPTZ,
+          current_period_end          TIMESTAMPTZ,
+          paystack_customer_code      TEXT UNIQUE,
+          paystack_subscription_code  TEXT UNIQUE,
+          created_at                  TIMESTAMPTZ DEFAULT NOW(),
+          updated_at                  TIMESTAMPTZ DEFAULT NOW()
+        )
+      `;
+
       console.log('✅ ZoomGuru DB ready');
       return;
     } catch (err) {
