@@ -9,7 +9,7 @@ import { initDB } from './database/init';
 
 async function bootstrap(): Promise<void> {
   const REQUIRED = [
-    'DATABASE_URL', 'JWT_SECRET', 'DEEPSEEK_API_KEY', 'QWEN_API_KEY',
+    'DATABASE_URL', 'JWT_SECRET', 'DEEPSEEK_API_KEY', 'GROQ_API_KEY',
     'PAYSTACK_SECRET_KEY',
     'PAYSTACK_PLAN_MONTHLY', 'PAYSTACK_PLAN_ANNUAL',
     'PAYSTACK_SUCCESS_URL',
