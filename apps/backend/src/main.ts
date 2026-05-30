@@ -20,7 +20,17 @@ async function bootstrap(): Promise<void> {
     new FastifyAdapter({ logger: false }),
   );
 
-  app.enableCors({ origin: true, credentials: true });
+  app.enableCors({
+    origin: (origin, callback) => {
+      const allowed = ['http://localhost:5173', 'app://.'];
+      if (!origin || allowed.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Origin not allowed'), false);
+      }
+    },
+    credentials: true,
+  });
 
   await initDB();
 

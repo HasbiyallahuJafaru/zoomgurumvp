@@ -74,7 +74,7 @@ if (!gotLock) {
         preload: path.join(__dirname, 'preload.js'),
         contextIsolation: true,
         nodeIntegration: false,
-        devTools: true,
+        devTools: !app.isPackaged,
       },
     });
 
@@ -268,6 +268,7 @@ if (!gotLock) {
     });
 
     ipcMain.handle('jd:save', (_event, text: string) => {
+      if (typeof text !== 'string' || text.length > 100_000) return;
       store.set('jdText', text);
     });
 
@@ -295,6 +296,25 @@ if (!gotLock) {
         return allowed.includes(permission);
       },
     );
+
+    session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          'Content-Security-Policy': [
+            [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-inline'",
+              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+              "font-src 'self' https://fonts.gstatic.com",
+              "connect-src 'self' http://localhost:3000 http://localhost:5173 https://api.deepseek.com https://api.groq.com",
+              "img-src 'self' data: blob:",
+              "media-src 'self' blob:",
+            ].join('; '),
+          ],
+        },
+      });
+    });
 
     createWindow();
     createTray();

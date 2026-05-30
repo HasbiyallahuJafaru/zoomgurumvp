@@ -49,13 +49,21 @@ Build in this exact order. Never jump ahead.
 
 ## Payment Provider
 
-Stripe. No other provider.
+Paystack. No other provider.
 
-Stripe concepts used:
-- Stripe Customer (one per ZoomGuru user)
-- Stripe Checkout Session (hosted payment page)
-- Stripe Subscription (recurring billing object)
-- Stripe Webhook (Stripe → backend event push)
+Paystack concepts used:
+- Paystack Customer (one per ZoomGuru user, identified by customer_code)
+- Paystack Transaction Initialize (returns authorization_url — hosted payment page)
+- Paystack Subscription (recurring billing object, identified by subscription_code)
+- Paystack Webhook (Paystack → backend event push, verified with HMAC SHA512)
+
+Pricing:
+- Monthly plan: 50,000 NGN per month
+- In Paystack, all amounts are in kobo: 50,000 NGN = 5,000,000 kobo
+- Plans are created in the Paystack dashboard and referenced by plan_code
+
+No Paystack npm package is required. All API calls use Node's global fetch
+(available in Node 18+). No new dependency needs to be installed.
 
 ---
 
@@ -67,16 +75,16 @@ Add to `apps/backend/src/database/init.ts` alongside the existing users table:
 
 ```sql
 CREATE TABLE IF NOT EXISTS subscriptions (
-  id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id                 UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  status                  TEXT NOT NULL DEFAULT 'inactive',
-  plan                    TEXT,
-  current_period_start    TIMESTAMPTZ,
-  current_period_end      TIMESTAMPTZ,
-  stripe_customer_id      TEXT UNIQUE,
-  stripe_subscription_id  TEXT UNIQUE,
-  created_at              TIMESTAMPTZ DEFAULT NOW(),
-  updated_at              TIMESTAMPTZ DEFAULT NOW()
+  id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id                     UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  status                      TEXT NOT NULL DEFAULT 'inactive',
+  plan                        TEXT,
+  current_period_start        TIMESTAMPTZ,
+  current_period_end          TIMESTAMPTZ,
+  paystack_customer_code      TEXT UNIQUE,
+  paystack_subscription_code  TEXT UNIQUE,
+  created_at                  TIMESTAMPTZ DEFAULT NOW(),
+  updated_at                  TIMESTAMPTZ DEFAULT NOW()
 );
 ```
 
@@ -91,8 +99,9 @@ CREATE TABLE IF NOT EXISTS subscriptions (
 
 ### Relationship
 
-One row per user. Insert on first checkout attempt.
-Query by user_id. Never query by subscription_id directly from the app.
+One row per user (enforced by UNIQUE on user_id).
+Insert on first checkout attempt.
+Query by user_id. Never query by subscription_code directly from the app.
 
 ---
 
@@ -117,7 +126,7 @@ to the imports array alongside AuthModule and AiModule.
 ### Endpoint 1: GET /subscription/status
 
 ```
-Auth:     JwtAuthGuard (Bearer token required)
+Auth:     AuthGuard('jwt') (Bearer token required)
 Headers:  Authorization: Bearer <token>
           X-Device-ID: <fingerprint>
 Body:     none
@@ -131,7 +140,7 @@ Response 200:
 }
 
 Logic:
-  1. Get user id from JWT (req.user.sub)
+  1. Get user id from JWT (req.user.userId — note: JwtStrategy.validate returns { userId, email })
   2. SELECT * FROM subscriptions WHERE user_id = $userId LIMIT 1
   3. If no row found: return { status: 'inactive', plan: null, daysRemaining: null, currentPeriodEnd: null }
   4. If row found:
@@ -144,7 +153,7 @@ Logic:
 ### Endpoint 2: POST /subscription/checkout
 
 ```
-Auth:     JwtAuthGuard (Bearer token required)
+Auth:     AuthGuard('jwt') (Bearer token required)
 Headers:  Authorization: Bearer <token>
           X-Device-ID: <fingerprint>
           Content-Type: application/json
@@ -152,27 +161,35 @@ Body:     { plan: 'monthly' | 'annual' }
 
 Response 200:
 {
-  checkoutUrl: string   ← Stripe hosted checkout URL, open in browser
+  checkoutUrl: string   ← Paystack authorization_url, open in browser
 }
 
 Logic:
-  1. Get user id and email from JWT (req.user.sub, req.user.email)
-  2. SELECT stripe_customer_id FROM subscriptions WHERE user_id = $userId
-  3. If no stripe_customer_id:
-       - Create Stripe customer: stripe.customers.create({ email })
-       - UPSERT into subscriptions (user_id, stripe_customer_id, status='inactive')
-  4. Select correct price ID from env:
-       plan === 'monthly' → process.env.STRIPE_PRICE_MONTHLY
-       plan === 'annual'  → process.env.STRIPE_PRICE_ANNUAL
-  5. Create Stripe Checkout Session:
-       stripe.checkout.sessions.create({
-         customer: stripeCustomerId,
-         mode: 'subscription',
-         line_items: [{ price: priceId, quantity: 1 }],
-         success_url: process.env.STRIPE_SUCCESS_URL,
-         cancel_url: process.env.STRIPE_CANCEL_URL,
-       })
-  6. Return { checkoutUrl: session.url }
+  1. Get user id and email from JWT (req.user.userId, req.user.email)
+  2. SELECT paystack_customer_code FROM subscriptions WHERE user_id = $userId
+  3. If no paystack_customer_code:
+       - Create Paystack customer:
+           POST https://api.paystack.co/customer
+           Authorization: Bearer PAYSTACK_SECRET_KEY
+           Body: { email }
+           → response.data.customer_code
+       - UPSERT into subscriptions (user_id, paystack_customer_code, status='inactive')
+           ON CONFLICT (user_id) DO UPDATE SET paystack_customer_code = $code
+  4. Select correct plan code from env:
+       plan === 'monthly' → process.env.PAYSTACK_PLAN_MONTHLY
+       plan === 'annual'  → process.env.PAYSTACK_PLAN_ANNUAL
+  5. Initialize Paystack transaction:
+       POST https://api.paystack.co/transaction/initialize
+       Authorization: Bearer PAYSTACK_SECRET_KEY
+       Body: {
+         email,
+         amount: 5000000,   ← 50,000 NGN in kobo (matches the plan price)
+         plan: planCode,
+         callback_url: process.env.PAYSTACK_SUCCESS_URL,
+         metadata: { user_id: userId },
+       }
+       → response.data.authorization_url
+  6. Return { checkoutUrl: authorization_url }
 ```
 
 ---
@@ -180,51 +197,63 @@ Logic:
 ### Endpoint 3: POST /subscription/webhook
 
 ```
-Auth:     NONE — Stripe signs the request, verify signature instead
-Headers:  stripe-signature: <sig>   ← provided by Stripe, read this header
+Auth:     NONE — Paystack signs the request, verify signature instead
+Headers:  x-paystack-signature: <sig>   ← provided by Paystack, read this header
 Body:     raw Buffer (NOT parsed JSON — must be raw for signature verification)
 
-Response 200: { received: true }   ← always return 200 to Stripe immediately
+Response 200: { received: true }   ← always return 200 to Paystack immediately
 
 CRITICAL: This endpoint must receive the raw request body.
 In NestJS/Fastify, add rawBody: true to the FastifyAdapter options in main.ts:
   new FastifyAdapter({ logger: false, rawBody: true })
 Then access it as req.rawBody in the controller.
 
+Signature verification (HMAC SHA512 — must do before touching the DB):
+  import crypto from 'node:crypto';
+  const hash = crypto
+    .createHmac('sha512', process.env.PAYSTACK_SECRET_KEY!)
+    .update(req.rawBody)
+    .digest('hex');
+  if (hash !== req.headers['x-paystack-signature']) {
+    return HTTP 400;
+  }
+
 Events to handle (ignore all others silently):
 
-  customer.subscription.created
-  customer.subscription.updated
+  subscription.create
       → UPDATE subscriptions SET
-            status = subscription.status,   ← map Stripe status to our status values
-            plan = (price interval === 'month' ? 'monthly' : 'annual'),
-            current_period_start = new Date(subscription.current_period_start * 1000),
-            current_period_end   = new Date(subscription.current_period_end * 1000),
-            stripe_subscription_id = subscription.id,
+            status = 'active',
+            plan = (data.plan.interval === 'monthly' ? 'monthly' : 'annual'),
+            paystack_subscription_code = data.subscription_code,
+            current_period_start = new Date(data.created_at),
+            current_period_end   = new Date(data.next_payment_date),
             updated_at = NOW()
-          WHERE stripe_customer_id = subscription.customer
+          WHERE paystack_customer_code = data.customer.customer_code
 
-  customer.subscription.deleted
+  subscription.disable
+  subscription.not_renew
       → UPDATE subscriptions SET status = 'cancelled', updated_at = NOW()
-          WHERE stripe_customer_id = subscription.customer
+          WHERE paystack_customer_code = data.customer.customer_code
+
+  invoice.update   (fires on successful renewal payment)
+      → Only act if data.paid_at is set (i.e. invoice was paid):
+        UPDATE subscriptions SET
+            status = 'active',
+            current_period_start = new Date(data.paid_at),
+            current_period_end   = new Date(data.subscription.next_payment_date),
+            updated_at = NOW()
+          WHERE paystack_customer_code = data.subscription.customer.customer_code
 
   invoice.payment_failed
       → UPDATE subscriptions SET status = 'past_due', updated_at = NOW()
-          WHERE stripe_customer_id = invoice.customer
+          WHERE paystack_customer_code = data.subscription.customer.customer_code
 
-Stripe status → our status mapping:
-  'active'   → 'active'
-  'past_due' → 'past_due'
-  'canceled' → 'cancelled'   ← note: Stripe spells it with one 'l'
-  anything else → 'inactive'
-
-Signature verification (must do this before touching the DB):
-  const event = stripe.webhooks.constructEvent(
-    req.rawBody,
-    req.headers['stripe-signature'],
-    process.env.STRIPE_WEBHOOK_SECRET
-  )
-  If constructEvent throws: return HTTP 400.
+Paystack subscription status → our status mapping:
+  subscription.create fires  → 'active'
+  subscription.disable fires → 'cancelled'
+  subscription.not_renew fires → 'cancelled'   ← Paystack spelling
+  invoice.payment_failed fires → 'past_due'
+  invoice.update with paid_at → 'active'
 ```
 
 ---
@@ -386,42 +415,55 @@ Two toggle buttons above the Subscribe button:
 ## New Environment Variables (backend .env)
 
 ```env
-# Stripe
-STRIPE_SECRET_KEY=sk_live_xxxx          ← from Stripe Dashboard → Developers → API Keys
-STRIPE_WEBHOOK_SECRET=whsec_xxxx        ← from Stripe Dashboard → Webhooks → signing secret
-STRIPE_PRICE_MONTHLY=price_xxxx         ← from Stripe Dashboard → Products → Monthly price ID
-STRIPE_PRICE_ANNUAL=price_xxxx          ← from Stripe Dashboard → Products → Annual price ID
-STRIPE_SUCCESS_URL=http://localhost:5173/payment-success
-STRIPE_CANCEL_URL=http://localhost:5173/payment-cancel
+# Paystack
+PAYSTACK_SECRET_KEY=sk_live_xxxx          ← from Paystack Dashboard → Settings → API Keys & Webhooks
+PAYSTACK_PLAN_MONTHLY=PLN_xxxx            ← from Paystack Dashboard → Products → Plans → Monthly plan code
+PAYSTACK_PLAN_ANNUAL=PLN_xxxx             ← from Paystack Dashboard → Products → Plans → Annual plan code
+PAYSTACK_SUCCESS_URL=http://localhost:5173/payment-success
 ```
 
-Add all six to the startup validation array in main.ts:
+Add all four to the startup validation array in main.ts:
 ```typescript
 const REQUIRED = [
   'DATABASE_URL', 'JWT_SECRET', 'DEEPSEEK_API_KEY', 'QWEN_API_KEY',
-  'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET',
-  'STRIPE_PRICE_MONTHLY', 'STRIPE_PRICE_ANNUAL',
-  'STRIPE_SUCCESS_URL', 'STRIPE_CANCEL_URL',
+  'PAYSTACK_SECRET_KEY',
+  'PAYSTACK_PLAN_MONTHLY', 'PAYSTACK_PLAN_ANNUAL',
+  'PAYSTACK_SUCCESS_URL',
 ];
 ```
 
+Note: Paystack webhook signature verification uses PAYSTACK_SECRET_KEY (same key
+as the API key). There is no separate webhook signing secret.
+
 ---
 
-## New Backend Dependency
+## No New Backend Dependency
 
-```bash
-cd apps/backend
-npm install stripe
-```
+No npm package installation required.
+All Paystack API calls use the global fetch() built into Node 18+.
+Do NOT install any paystack npm package.
 
-The `stripe` npm package provides the official Stripe Node SDK.
-Import as:
+API calls in subscription.service.ts use this pattern:
 ```typescript
-import Stripe from 'stripe';
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+const res = await fetch('https://api.paystack.co/...', {
+  method: 'POST',
+  headers: {
+    Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY!}`,
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({ ... }),
+});
+const data = await res.json() as { data: { ... } };
 ```
 
-Instantiate once in subscription.service.ts, not per-request.
+Webhook signature verification uses Node's built-in crypto module:
+```typescript
+import crypto from 'node:crypto';
+const hash = crypto
+  .createHmac('sha512', process.env.PAYSTACK_SECRET_KEY!)
+  .update(rawBody)
+  .digest('hex');
+```
 
 ---
 
@@ -436,8 +478,8 @@ apps/backend/src/subscription/subscription.module.ts    ← new file
 apps/backend/src/subscription/subscription.service.ts   ← new file
 apps/backend/src/subscription/subscription.controller.ts ← new file
 apps/backend/src/app.module.ts            ← import SubscriptionModule
-apps/backend/src/main.ts                  ← add rawBody: true to FastifyAdapter
-apps/backend/.env                         ← add 6 new vars
+apps/backend/src/main.ts                  ← add rawBody: true to FastifyAdapter, add Paystack env vars to REQUIRED
+apps/backend/.env                         ← add 4 new vars
 ```
 
 ### Electron session (do this second, after backend passes tsc)
@@ -456,15 +498,14 @@ apps/electron/src/dashboard/Dashboard.tsx ← replace mocked data with real call
 ### Backend session
 
 1. Run `npx tsc --noEmit` — establish baseline (should be 0 errors)
-2. `npm install stripe`
-3. `database/init.ts` — add subscriptions table
-4. `subscription.module.ts`
-5. `subscription.service.ts`
-6. `subscription.controller.ts`
-7. `app.module.ts` — register SubscriptionModule
-8. `main.ts` — add rawBody: true
-9. `npx tsc --noEmit` — must be 0 errors
-10. Add env vars to .env
+2. `database/init.ts` — add subscriptions table
+3. `subscription.module.ts`
+4. `subscription.service.ts`
+5. `subscription.controller.ts`
+6. `app.module.ts` — register SubscriptionModule
+7. `main.ts` — add rawBody: true, add Paystack vars to REQUIRED
+8. `npx tsc --noEmit` — must be 0 errors
+9. Add env vars to .env
 
 ### Electron session (separate session, after backend is done)
 
@@ -485,42 +526,57 @@ apps/electron/src/dashboard/Dashboard.tsx ← replace mocked data with real call
 [ ] Dashboard mounts → card populates with real data (not mocked)
 [ ] Subscribe button → POST /subscription/checkout → returns checkoutUrl
 [ ] checkoutUrl opens in browser (not inside Electron)
-[ ] Complete Stripe checkout → webhook fires → DB row updated
+[ ] Complete Paystack checkout → webhook fires → DB row updated
 [ ] Dashboard refresh → status shows 'active', green badge, real days remaining
 [ ] Expired subscription → days remaining shows "Expired"
 [ ] 401 on any call → logout fires
+[ ] POST /subscription/webhook with wrong signature → HTTP 400
 ```
 
 ---
 
-## Stripe Setup Steps (do before running backend session)
+## Paystack Setup Steps (do before running backend session)
 
 ```
-1. Create Stripe account at stripe.com
-2. Dashboard → Products → Create product "ZoomGuru"
-3. Add two prices:
-       Monthly: recurring, your price, interval = month
-       Annual:  recurring, your price, interval = year
-4. Copy both price IDs (price_xxx) into .env
-5. Dashboard → Developers → API Keys → copy Secret key into .env
-6. Dashboard → Developers → Webhooks → Add endpoint:
-       URL: use Stripe CLI for local testing (stripe listen --forward-to localhost:3000/subscription/webhook)
+1. Create Paystack account at paystack.com
+2. Dashboard → Products → Plans → Create plan "ZoomGuru Monthly"
+       Amount: 50,000 NGN
+       Interval: Monthly
+   Copy the plan_code (PLN_xxx) into .env as PAYSTACK_PLAN_MONTHLY
+
+3. (Optional) Create plan "ZoomGuru Annual"
+       Amount: your annual price in NGN
+       Interval: Annually
+   Copy the plan_code into .env as PAYSTACK_PLAN_ANNUAL
+
+4. Dashboard → Settings → API Keys & Webhooks
+       Copy the Secret Key (sk_live_xxx or sk_test_xxx) into .env as PAYSTACK_SECRET_KEY
+
+5. Dashboard → Settings → API Keys & Webhooks → Webhooks
+       Add webhook URL: use ngrok for local testing (see below)
        Events to listen for:
-           customer.subscription.created
-           customer.subscription.updated
-           customer.subscription.deleted
+           subscription.create
+           subscription.disable
+           subscription.not_renew
+           invoice.update
            invoice.payment_failed
-7. Copy webhook signing secret (whsec_xxx) into .env
-8. Install Stripe CLI locally for webhook forwarding during dev
 ```
 
 ---
 
-## Stripe CLI Command for Local Webhook Testing
+## ngrok Command for Local Webhook Testing
+
+Paystack does not have its own CLI for forwarding webhooks.
+Use ngrok to expose localhost:3000 to the internet during development:
 
 ```bash
-stripe listen --forward-to localhost:3000/subscription/webhook
+ngrok http 3000
 ```
 
-Run this in a third terminal alongside backend and electron.
-It proxies Stripe webhook events to your local server.
+ngrok will print a public URL like https://abc123.ngrok.io
+Set the Paystack webhook URL to: https://abc123.ngrok.io/subscription/webhook
+
+Run ngrok in a third terminal alongside backend and electron.
+
+Note: The ngrok URL changes on every restart (free tier).
+Update the Paystack webhook URL in the dashboard whenever you restart ngrok.
