@@ -6,6 +6,11 @@ services:
     buildCommand: npm install && npm run build
     startCommand: npm run start
     healthCheckPath: /health
+    scaling:
+      minInstances: 1
+      maxInstances: 3
+      targetMemoryPercent: 80
+      targetCPUPercent: 70
     envVars:
       - key: NODE_ENV
         value: production
@@ -15,5 +20,13 @@ services:
         sync: false
       - key: DEEPSEEK_API_KEY
         sync: false
-      - key: QWEN_API_KEY
+      - key: GROQ_API_KEY
+        sync: false
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      - key: PAYSTACK_PLAN_MONTHLY
+        sync: false
+      - key: PAYSTACK_PLAN_ANNUAL
+        sync: false
+      - key: PAYSTACK_SUCCESS_URL
         sync: false

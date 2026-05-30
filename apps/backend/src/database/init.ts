@@ -8,11 +8,11 @@ export async function initDB(): Promise<void> {
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      const sql = getDB();
+      const pool = getDB();
 
-      await sql`CREATE EXTENSION IF NOT EXISTS "pgcrypto"`;
+      await pool.query(`CREATE EXTENSION IF NOT EXISTS "pgcrypto"`);
 
-      await sql`
+      await pool.query(`
         CREATE TABLE IF NOT EXISTS users (
           id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
           email         TEXT UNIQUE NOT NULL,
@@ -22,13 +22,14 @@ export async function initDB(): Promise<void> {
           is_pro        BOOLEAN DEFAULT true,
           created_at    TIMESTAMPTZ DEFAULT NOW()
         )
-      `;
+      `);
 
-      await sql`
+      await pool.query(`
         CREATE TABLE IF NOT EXISTS subscriptions (
           id                          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
           user_id                     UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          status                      TEXT NOT NULL DEFAULT 'inactive',
+          status                      TEXT NOT NULL DEFAULT 'inactive'
+                                        CHECK (status IN ('inactive', 'active', 'past_due', 'cancelled')),
           plan                        TEXT,
           current_period_start        TIMESTAMPTZ,
           current_period_end          TIMESTAMPTZ,
@@ -37,7 +38,18 @@ export async function initDB(): Promise<void> {
           created_at                  TIMESTAMPTZ DEFAULT NOW(),
           updated_at                  TIMESTAMPTZ DEFAULT NOW()
         )
-      `;
+      `);
+
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_subscriptions_status
+          ON subscriptions(status)
+      `);
+
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_subscriptions_period_end
+          ON subscriptions(current_period_end)
+          WHERE current_period_end IS NOT NULL
+      `);
 
       console.log('✅ ZoomGuru DB ready');
       return;

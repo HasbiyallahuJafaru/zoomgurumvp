@@ -26,16 +26,18 @@ export class AuthService {
   constructor(private jwtService: JwtService) {}
 
   async register(email: string, name: string, password: string): Promise<LoginResult> {
-    const sql = getDB();
+    const pool = getDB();
     const passwordHash = await bcrypt.hash(password, 12);
 
-    let rows: UserRow[];
+    let user: UserRow;
     try {
-      rows = (await sql`
-        INSERT INTO users (email, name, password_hash)
-        VALUES (${email}, ${name}, ${passwordHash})
-        RETURNING id, email, name, username, password_hash
-      `) as UserRow[];
+      const result = await pool.query<UserRow>(
+        `INSERT INTO users (email, name, password_hash)
+         VALUES ($1, $2, $3)
+         RETURNING id, email, name, username, password_hash`,
+        [email, name, passwordHash],
+      );
+      user = result.rows[0];
     } catch (err: unknown) {
       if (err instanceof Error && err.message.includes('unique')) {
         throw new ConflictException('Email already in use');
@@ -43,7 +45,6 @@ export class AuthService {
       throw err;
     }
 
-    const user = rows[0];
     const accessToken = this.jwtService.sign(
       { sub: user.id, email: user.email },
       { expiresIn: '30d' },
@@ -56,17 +57,19 @@ export class AuthService {
   }
 
   async login(identifier: string, password: string): Promise<LoginResult> {
-    const sql = getDB();
+    const pool = getDB();
 
-    const rows = (await sql`
-      SELECT id, email, name, username, password_hash
-      FROM users
-      WHERE email = ${identifier}
-      OR username = ${identifier}
-      LIMIT 1
-    `) as UserRow[];
+    const result = await pool.query<UserRow>(
+      `(SELECT id, email, name, username, password_hash
+          FROM users WHERE email = $1 LIMIT 1)
+       UNION ALL
+       (SELECT id, email, name, username, password_hash
+          FROM users WHERE username = $1 LIMIT 1)
+       LIMIT 1`,
+      [identifier],
+    );
 
-    const user = rows[0];
+    const user = result.rows[0];
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }

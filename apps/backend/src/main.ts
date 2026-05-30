@@ -11,8 +11,6 @@ async function bootstrap(): Promise<void> {
   const REQUIRED = [
     'DATABASE_URL', 'JWT_SECRET', 'DEEPSEEK_API_KEY', 'GROQ_API_KEY',
     'PAYSTACK_SECRET_KEY',
-    'PAYSTACK_PLAN_MONTHLY', 'PAYSTACK_PLAN_ANNUAL',
-    'PAYSTACK_SUCCESS_URL',
   ];
   const missing = REQUIRED.filter((k) => !process.env[k]);
   if (missing.length) {
@@ -22,7 +20,7 @@ async function bootstrap(): Promise<void> {
 
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({ logger: false }),
+    new FastifyAdapter({ logger: false, trustProxy: true }),
     { rawBody: true },
   );
 

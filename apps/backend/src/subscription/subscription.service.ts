@@ -17,18 +17,6 @@ interface SubscriptionRow {
   current_period_end: string | null;
 }
 
-interface CustomerCodeRow {
-  paystack_customer_code: string | null;
-}
-
-interface PaystackCustomerResponse {
-  data: { customer_code: string };
-}
-
-interface PaystackTransactionResponse {
-  data: { authorization_url: string };
-}
-
 interface SubscriptionCreateData {
   subscription_code: string;
   created_at: string;
@@ -60,24 +48,42 @@ interface WebhookEvent {
   data: unknown;
 }
 
+interface PaystackVerifyCustomer {
+  customer_code: string;
+}
+
+interface PaystackVerifyPlan {
+  interval: string;
+}
+
+interface PaystackVerifyData {
+  status: string;
+  plan: PaystackVerifyPlan | null;
+  customer: PaystackVerifyCustomer;
+}
+
+interface PaystackVerifyResponse {
+  status: boolean;
+  data: PaystackVerifyData;
+}
+
 const PAYSTACK_BASE = 'https://api.paystack.co';
 
 @Injectable()
 export class SubscriptionService {
   async getStatus(userId: string): Promise<StatusResponse> {
-    const sql = getDB();
-    const rows = (await sql`
-      SELECT status, plan, current_period_end
-      FROM subscriptions
-      WHERE user_id = ${userId}
-      LIMIT 1
-    `) as SubscriptionRow[];
+    const pool = getDB();
+    const result = await pool.query<SubscriptionRow>(
+      `SELECT status, plan, current_period_end
+       FROM subscriptions WHERE user_id = $1 LIMIT 1`,
+      [userId],
+    );
 
-    if (rows.length === 0) {
+    if (result.rows.length === 0) {
       return { status: 'inactive', plan: null, daysRemaining: null, currentPeriodEnd: null };
     }
 
-    const row = rows[0];
+    const row = result.rows[0];
     let daysRemaining: number | null = null;
     if (row.current_period_end) {
       daysRemaining = Math.max(
@@ -96,68 +102,39 @@ export class SubscriptionService {
     };
   }
 
-  async checkout(
-    userId: string,
-    email: string,
-    plan: 'monthly' | 'annual',
-  ): Promise<{ checkoutUrl: string }> {
-    const sql = getDB();
+  async verify(userId: string, reference: string): Promise<{ success: boolean }> {
     const secretKey = process.env.PAYSTACK_SECRET_KEY;
     if (!secretKey) throw new InternalServerErrorException('Paystack not configured');
 
-    const rows = (await sql`
-      SELECT paystack_customer_code
-      FROM subscriptions
-      WHERE user_id = ${userId}
-      LIMIT 1
-    `) as CustomerCodeRow[];
+    const res = await fetch(
+      `${PAYSTACK_BASE}/transaction/verify/${encodeURIComponent(reference)}`,
+      { headers: { Authorization: `Bearer ${secretKey}` } },
+    );
 
-    let customerCode: string;
+    if (!res.ok) throw new BadRequestException('Could not reach Paystack');
 
-    if (rows.length === 0 || !rows[0].paystack_customer_code) {
-      const createRes = await fetch(`${PAYSTACK_BASE}/customer`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${secretKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
-      });
-      const createData = (await createRes.json()) as PaystackCustomerResponse;
-      customerCode = createData.data.customer_code;
-
-      await sql`
-        INSERT INTO subscriptions (user_id, paystack_customer_code, status)
-        VALUES (${userId}, ${customerCode}, 'inactive')
-        ON CONFLICT (user_id) DO UPDATE SET paystack_customer_code = ${customerCode}
-      `;
-    } else {
-      customerCode = rows[0].paystack_customer_code;
+    const body = (await res.json()) as PaystackVerifyResponse;
+    if (!body.status || body.data.status !== 'success') {
+      throw new BadRequestException('Payment not successful');
     }
 
-    const planCode =
-      plan === 'monthly'
-        ? process.env.PAYSTACK_PLAN_MONTHLY
-        : process.env.PAYSTACK_PLAN_ANNUAL;
-    if (!planCode) throw new InternalServerErrorException('Plan code not configured');
+    const txData = body.data;
+    const plan: 'monthly' | 'annual' =
+      txData.plan?.interval === 'monthly' ? 'monthly' : 'annual';
+    const pool = getDB();
 
-    const initRes = await fetch(`${PAYSTACK_BASE}/transaction/initialize`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${secretKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        email,
-        amount: 5000000,
-        plan: planCode,
-        callback_url: process.env.PAYSTACK_SUCCESS_URL,
-        metadata: { user_id: userId },
-      }),
-    });
-    const initData = (await initRes.json()) as PaystackTransactionResponse;
+    await pool.query(
+      `INSERT INTO subscriptions (user_id, paystack_customer_code, status, plan, updated_at)
+       VALUES ($1, $2, 'active', $3, NOW())
+       ON CONFLICT (user_id) DO UPDATE SET
+         paystack_customer_code = $2,
+         status = 'active',
+         plan = $3,
+         updated_at = NOW()`,
+      [userId, txData.customer.customer_code, plan],
+    );
 
-    return { checkoutUrl: initData.data.authorization_url };
+    return { success: true };
   }
 
   async handleWebhook(rawBody: Buffer, signature: string): Promise<void> {
@@ -170,47 +147,61 @@ export class SubscriptionService {
     }
 
     const event = JSON.parse(rawBody.toString()) as WebhookEvent;
-    const sql = getDB();
+    const pool = getDB();
 
     if (event.event === 'subscription.create') {
       const data = event.data as SubscriptionCreateData;
       const plan = data.plan.interval === 'monthly' ? 'monthly' : 'annual';
-      await sql`
-        UPDATE subscriptions SET
-          status = 'active',
-          plan = ${plan},
-          paystack_subscription_code = ${data.subscription_code},
-          current_period_start = ${new Date(data.created_at).toISOString()},
-          current_period_end   = ${new Date(data.next_payment_date).toISOString()},
-          updated_at = NOW()
-        WHERE paystack_customer_code = ${data.customer.customer_code}
-      `;
+      await pool.query(
+        `UPDATE subscriptions SET
+           status = 'active',
+           plan = $1,
+           paystack_subscription_code = $2,
+           current_period_start = $3,
+           current_period_end = $4,
+           updated_at = NOW()
+         WHERE paystack_customer_code = $5`,
+        [
+          plan,
+          data.subscription_code,
+          new Date(data.created_at).toISOString(),
+          new Date(data.next_payment_date).toISOString(),
+          data.customer.customer_code,
+        ],
+      );
     } else if (
       event.event === 'subscription.disable' ||
       event.event === 'subscription.not_renew'
     ) {
       const data = event.data as SubscriptionCancelData;
-      await sql`
-        UPDATE subscriptions SET status = 'cancelled', updated_at = NOW()
-        WHERE paystack_customer_code = ${data.customer.customer_code}
-      `;
+      await pool.query(
+        `UPDATE subscriptions SET status = 'cancelled', updated_at = NOW()
+         WHERE paystack_customer_code = $1`,
+        [data.customer.customer_code],
+      );
     } else if (event.event === 'invoice.update') {
       const data = event.data as InvoiceUpdateData;
       if (!data.paid_at) return;
-      await sql`
-        UPDATE subscriptions SET
-          status = 'active',
-          current_period_start = ${new Date(data.paid_at).toISOString()},
-          current_period_end   = ${new Date(data.subscription.next_payment_date).toISOString()},
-          updated_at = NOW()
-        WHERE paystack_customer_code = ${data.subscription.customer.customer_code}
-      `;
+      await pool.query(
+        `UPDATE subscriptions SET
+           status = 'active',
+           current_period_start = $1,
+           current_period_end = $2,
+           updated_at = NOW()
+         WHERE paystack_customer_code = $3`,
+        [
+          new Date(data.paid_at).toISOString(),
+          new Date(data.subscription.next_payment_date).toISOString(),
+          data.subscription.customer.customer_code,
+        ],
+      );
     } else if (event.event === 'invoice.payment_failed') {
       const data = event.data as InvoicePaymentFailedData;
-      await sql`
-        UPDATE subscriptions SET status = 'past_due', updated_at = NOW()
-        WHERE paystack_customer_code = ${data.subscription.customer.customer_code}
-      `;
+      await pool.query(
+        `UPDATE subscriptions SET status = 'past_due', updated_at = NOW()
+         WHERE paystack_customer_code = $1`,
+        [data.subscription.customer.customer_code],
+      );
     }
   }
 }

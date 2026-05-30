@@ -1,13 +1,16 @@
-import { neon, NeonQueryFunction } from '@neondatabase/serverless';
+import { Pool } from '@neondatabase/serverless';
 
-let _sql: NeonQueryFunction<false, false> | null = null;
+let _pool: Pool | null = null;
 
-export function getDB(): NeonQueryFunction<false, false> {
-  if (!_sql) {
+export function getDB(): Pool {
+  if (!_pool) {
     if (!process.env.DATABASE_URL) {
       throw new Error('DATABASE_URL not set');
     }
-    _sql = neon(process.env.DATABASE_URL);
+    _pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      max: 3,
+    });
   }
-  return _sql;
+  return _pool;
 }
