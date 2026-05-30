@@ -97,6 +97,31 @@ Database
 
 ---
 
+## Paystack Integration (Inline.js — current approach)
+
+Paystack uses the inline.js script tag injected at runtime.
+No redirect, no popup mode, no server-side checkout session.
+
+```
+Monthly plan  → pop.setup({ plan: VITE_PAYSTACK_PLAN_MONTHLY })
+                Paystack subscription — recurring ₦50,000/month
+                Plan code (PLN_xxx) must be created in Paystack dashboard
+
+Lifetime plan → pop.setup({ amount: 100_000_000 })
+                One-time payment — ₦1,000,000 (amount in kobo)
+                No plan code needed — hardcoded in Dashboard.tsx
+
+After payment → POST /subscription/verify { reference }
+                Backend calls Paystack API to confirm
+                Monthly: no period_end set (webhook sets it later)
+                Lifetime: current_period_end set to 2099-12-31
+```
+
+Note: VITE_PAYSTACK_PLAN_ANNUAL has been removed.
+The second plan is now lifetime (one-time), not annual (recurring).
+
+---
+
 ## What Is Deliberately CUT From MVP
 
 These exist in the full spec but are NOT built yet.

@@ -6,7 +6,7 @@ type SubscriptionStatus = 'inactive' | 'active' | 'past_due' | 'cancelled';
 
 export interface StatusResponse {
   status: SubscriptionStatus;
-  plan: 'monthly' | 'annual' | null;
+  plan: 'monthly' | 'lifetime' | null;
   daysRemaining: number | null;
   currentPeriodEnd: string | null;
 }
@@ -94,7 +94,7 @@ export class SubscriptionService {
 
     return {
       status: row.status as SubscriptionStatus,
-      plan: row.plan as 'monthly' | 'annual' | null,
+      plan: row.plan as 'monthly' | 'lifetime' | null,
       daysRemaining,
       currentPeriodEnd: row.current_period_end
         ? new Date(row.current_period_end).toISOString()
@@ -119,20 +119,34 @@ export class SubscriptionService {
     }
 
     const txData = body.data;
-    const plan: 'monthly' | 'annual' =
-      txData.plan?.interval === 'monthly' ? 'monthly' : 'annual';
+    const isLifetime = txData.plan === null;
+    const plan: 'monthly' | 'lifetime' = isLifetime ? 'lifetime' : 'monthly';
     const pool = getDB();
 
-    await pool.query(
-      `INSERT INTO subscriptions (user_id, paystack_customer_code, status, plan, updated_at)
-       VALUES ($1, $2, 'active', $3, NOW())
-       ON CONFLICT (user_id) DO UPDATE SET
-         paystack_customer_code = $2,
-         status = 'active',
-         plan = $3,
-         updated_at = NOW()`,
-      [userId, txData.customer.customer_code, plan],
-    );
+    if (isLifetime) {
+      await pool.query(
+        `INSERT INTO subscriptions (user_id, paystack_customer_code, status, plan, current_period_end, updated_at)
+         VALUES ($1, $2, 'active', $3, $4, NOW())
+         ON CONFLICT (user_id) DO UPDATE SET
+           paystack_customer_code = $2,
+           status = 'active',
+           plan = $3,
+           current_period_end = $4,
+           updated_at = NOW()`,
+        [userId, txData.customer.customer_code, plan, '2099-12-31T23:59:59.000Z'],
+      );
+    } else {
+      await pool.query(
+        `INSERT INTO subscriptions (user_id, paystack_customer_code, status, plan, updated_at)
+         VALUES ($1, $2, 'active', $3, NOW())
+         ON CONFLICT (user_id) DO UPDATE SET
+           paystack_customer_code = $2,
+           status = 'active',
+           plan = $3,
+           updated_at = NOW()`,
+        [userId, txData.customer.customer_code, plan],
+      );
+    }
 
     return { success: true };
   }

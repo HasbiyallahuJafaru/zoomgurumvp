@@ -9,7 +9,7 @@ type SubStatus = 'inactive' | 'active' | 'past_due' | 'cancelled';
 
 interface SubData {
   status: SubStatus;
-  plan: 'monthly' | 'annual' | null;
+  plan: 'monthly' | 'lifetime' | null;
   daysRemaining: number | null;
   currentPeriodEnd: string | null;
 }
@@ -25,7 +25,8 @@ interface PaystackHandler {
 interface PaystackSetupConfig {
   key: string;
   email: string;
-  plan: string;
+  plan?: string;
+  amount?: number;
   ref: string;
   onClose(): void;
   callback(response: PaystackResponse): void;
@@ -65,7 +66,7 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
   const [loadingSub, setLoadingSub] = useState(true);
   const [checkingOut, setCheckingOut] = useState(false);
   const [verifying, setVerifying] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'annual'>('monthly');
+  const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'lifetime'>('monthly');
 
   useEffect(() => {
     void (async () => {
@@ -93,11 +94,11 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
     const token = localStorage.getItem('access_token') || '';
     const email = getEmailFromJwt(token);
     const pubKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY as string;
-    const planCode = selectedPlan === 'monthly'
-      ? import.meta.env.VITE_PAYSTACK_PLAN_MONTHLY as string
-      : import.meta.env.VITE_PAYSTACK_PLAN_ANNUAL as string;
+    const isLifetime = selectedPlan === 'lifetime';
+    const planCode = isLifetime ? null : (import.meta.env.VITE_PAYSTACK_PLAN_MONTHLY as string);
 
-    if (!pubKey || !planCode || !email) return;
+    if (!pubKey || !email) return;
+    if (!isLifetime && !planCode) return;
 
     setCheckingOut(true);
 
@@ -111,10 +112,9 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
     // PaystackPop has no npm package — injected via script tag at runtime
     const pop = (window as unknown as { PaystackPop: PaystackPopInterface }).PaystackPop;
 
-    pop.setup({
+    const payConfig: PaystackSetupConfig = {
       key: pubKey,
       email,
-      plan: planCode,
       ref: `zg_${Date.now()}`,
       onClose: () => {
         setCheckingOut(false);
@@ -151,7 +151,15 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
           }
         })();
       },
-    }).openIframe();
+    };
+
+    if (isLifetime) {
+      payConfig.amount = 100_000_000;
+    } else {
+      payConfig.plan = planCode as string;
+    }
+
+    pop.setup(payConfig).openIframe();
   }
 
   function statusBadgeStyle(): CSSProperties {
@@ -176,6 +184,7 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
   function daysLabel(): string {
     if (loadingSub) return 'Loading…';
     if (!sub || sub.daysRemaining === null) return '—';
+    if (sub.plan === 'lifetime') return 'Lifetime';
     if (sub.daysRemaining === 0) return 'Expired';
     return `${sub.daysRemaining} days`;
   }
@@ -183,7 +192,7 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
   function billingLabel(): string {
     if (loadingSub) return 'Loading…';
     if (!sub || !sub.plan) return '—';
-    return sub.plan === 'monthly' ? 'Monthly' : 'Annual';
+    return sub.plan === 'monthly' ? 'Monthly' : 'Lifetime';
   }
 
   const isSubscribeDisabled = loadingSub || sub?.status === 'active' || checkingOut || verifying;
@@ -257,10 +266,10 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
               </button>
               <button
                 className="zg-plan"
-                style={selectedPlan === 'annual' ? s.planBtnActive : s.planBtn}
-                onClick={() => setSelectedPlan('annual')}
+                style={selectedPlan === 'lifetime' ? s.planBtnActive : s.planBtn}
+                onClick={() => setSelectedPlan('lifetime')}
               >
-                Annual
+                Lifetime
               </button>
             </div>
           )}
