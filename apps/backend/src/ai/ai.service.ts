@@ -3,13 +3,21 @@ import { ServerResponse } from 'http';
 
 const BASE_PROMPT_SUFFIX = `Answer questions clearly and confidently, as if speaking directly to the interviewer. Be concise and professional. For coding: show approach then code. For behavioral: use STAR format naturally. Keep answers 3-6 sentences unless more depth is needed.`;
 
+function truncateAtWord(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const cut = text.lastIndexOf(' ', max);
+  return cut > 0 ? text.slice(0, cut) : text.slice(0, max);
+}
+
 function buildSystemPrompt(cvText?: string, jdText?: string): string {
   if (!cvText && !jdText) {
     return `You are ZoomGuru, an AI interview assistant. ${BASE_PROMPT_SUFFIX}`;
   }
+  const cv = cvText ? truncateAtWord(cvText, 1500) : undefined;
+  const jd = jdText ? truncateAtWord(jdText, 1000) : undefined;
   let prompt = `You are ZoomGuru, an AI interview assistant helping a specific candidate.\n\n`;
-  if (cvText) prompt += `CANDIDATE BACKGROUND (CV/RESUME):\n${cvText}\n\n`;
-  if (jdText) prompt += `ROLE BEING INTERVIEWED FOR:\n${jdText}\n\n`;
+  if (cv) prompt += `CANDIDATE BACKGROUND (CV/RESUME):\n${cv}\n\n`;
+  if (jd) prompt += `ROLE BEING INTERVIEWED FOR:\n${jd}\n\n`;
   prompt += `Answer all questions as this specific candidate applying for this specific role. Tailor responses to their actual experience and skills. ${BASE_PROMPT_SUFFIX}`;
   return prompt;
 }
@@ -18,9 +26,11 @@ function buildVisionPrompt(cvText?: string, jdText?: string): string {
   if (!cvText && !jdText) {
     return `You are ZoomGuru, an AI interview assistant. The user has shared a screenshot of their screen during a job interview. Analyze what you see and provide a concise, helpful response — answer any visible question, explain any visible code or diagram, or describe what is on screen. Be direct and professional.`;
   }
+  const cv = cvText ? truncateAtWord(cvText, 1500) : undefined;
+  const jd = jdText ? truncateAtWord(jdText, 1000) : undefined;
   let prompt = `You are ZoomGuru, an AI interview assistant helping a specific candidate.\n\n`;
-  if (cvText) prompt += `CANDIDATE BACKGROUND (CV/RESUME):\n${cvText}\n\n`;
-  if (jdText) prompt += `ROLE BEING INTERVIEWED FOR:\n${jdText}\n\n`;
+  if (cv) prompt += `CANDIDATE BACKGROUND (CV/RESUME):\n${cv}\n\n`;
+  if (jd) prompt += `ROLE BEING INTERVIEWED FOR:\n${jd}\n\n`;
   prompt += `The candidate has shared a screenshot during their interview. Analyze what you see and provide a concise, targeted response tailored to their background and this role — answer the visible question as this candidate would, explain code or diagrams in the context of their skills, or describe what is on screen. Be direct and specific.`;
   return prompt;
 }
@@ -54,8 +64,6 @@ export class AiService {
     const keywords = [
       'implement', 'algorithm', 'complexity', 'leetcode', 'function',
       'code', 'binary', 'array', 'tree', 'graph', 'dynamic',
-      'design', 'architect', 'scale', 'system', 'microservice',
-      'database', 'cache', 'load balancer',
       'calculate', 'probability', 'formula', 'proof', 'derive',
     ];
     return keywords.some((kw) => lower.includes(kw))
@@ -76,7 +84,7 @@ export class AiService {
         { role: 'user', content: transcript },
       ],
       stream: true,
-      max_tokens: model === 'deepseek-reasoner' ? 4000 : 800,
+      max_tokens: model === 'deepseek-reasoner' ? 1500 : 800,
     };
 
     if (model === 'deepseek-chat') {

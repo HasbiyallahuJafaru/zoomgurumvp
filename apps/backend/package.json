@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "start:dev": "nest start --watch",
+    "start:dev": "nest build && nest start --watch",
     "build": "nest build",
     "start": "node dist/main"
   },
