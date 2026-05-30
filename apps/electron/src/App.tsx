@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import Login from './auth/Login';
 import Register from './auth/Register';
+import Dashboard from './dashboard/Dashboard';
 import CvSetup from './onboarding/CvSetup';
 import Overlay from './overlay/Overlay';
 
-type Step = 'login' | 'register' | 'cv' | 'overlay';
+type Step = 'login' | 'register' | 'dashboard' | 'cv' | 'overlay';
 
 const App = () => {
   const [step, setStep] = useState<Step>(() =>
-    localStorage.getItem('access_token') ? 'cv' : 'login'
+    localStorage.getItem('access_token') ? 'dashboard' : 'login'
   );
 
   function handleLogout(): void {
@@ -20,7 +21,7 @@ const App = () => {
   if (step === 'login') {
     return (
       <Login
-        onLogin={() => setStep('cv')}
+        onLogin={() => setStep('dashboard')}
         onShowRegister={() => setStep('register')}
       />
     );
@@ -29,8 +30,17 @@ const App = () => {
   if (step === 'register') {
     return (
       <Register
-        onRegistered={() => setStep('cv')}
+        onRegistered={() => setStep('dashboard')}
         onShowLogin={() => setStep('login')}
+      />
+    );
+  }
+
+  if (step === 'dashboard') {
+    return (
+      <Dashboard
+        onContinue={() => setStep('cv')}
+        onLogout={handleLogout}
       />
     );
   }
