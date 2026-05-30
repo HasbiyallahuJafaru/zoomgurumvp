@@ -31,20 +31,16 @@ export class SubscriptionController {
     return this.subscriptionService.getStatus(req.user.userId);
   }
 
-  @Post('checkout')
+  @Post('verify')
   @UseGuards(AuthGuard('jwt'))
-  async checkout(
+  async verify(
     @Req() req: AuthRequest,
-    @Body() body: { plan: string },
+    @Body() body: { reference: string },
   ) {
-    if (body.plan !== 'monthly' && body.plan !== 'annual') {
-      throw new BadRequestException('plan must be monthly or annual');
+    if (!body.reference || typeof body.reference !== 'string') {
+      throw new BadRequestException('reference is required');
     }
-    return this.subscriptionService.checkout(
-      req.user.userId,
-      req.user.email,
-      body.plan,
-    );
+    return this.subscriptionService.verify(req.user.userId, body.reference);
   }
 
   @Post('webhook')

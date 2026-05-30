@@ -14,14 +14,57 @@ interface SubData {
   currentPeriodEnd: string | null;
 }
 
+interface PaystackResponse {
+  reference: string;
+}
+
+interface PaystackHandler {
+  openIframe(): void;
+}
+
+interface PaystackSetupConfig {
+  key: string;
+  email: string;
+  plan: string;
+  ref: string;
+  onClose(): void;
+  callback(response: PaystackResponse): void;
+}
+
+interface PaystackPopInterface {
+  setup(config: PaystackSetupConfig): PaystackHandler;
+}
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 const SANS  = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
 const SERIF = "'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif";
+
+function getEmailFromJwt(token: string): string {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1])) as { email: string };
+    return payload.email;
+  } catch {
+    return '';
+  }
+}
+
+function loadPaystackScript(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (document.getElementById('paystack-inline')) { resolve(); return; }
+    const script = document.createElement('script');
+    script.id = 'paystack-inline';
+    script.src = 'https://js.paystack.co/v1/inline.js';
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Failed to load Paystack'));
+    document.head.appendChild(script);
+  });
+}
 
 export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
   const [sub, setSub] = useState<SubData | null>(null);
   const [loadingSub, setLoadingSub] = useState(true);
   const [checkingOut, setCheckingOut] = useState(false);
+  const [verifying, setVerifying] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'annual'>('monthly');
 
   useEffect(() => {
@@ -47,26 +90,68 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
   }, []);
 
   async function handleSubscribe(): Promise<void> {
+    const token = localStorage.getItem('access_token') || '';
+    const email = getEmailFromJwt(token);
+    const pubKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY as string;
+    const planCode = selectedPlan === 'monthly'
+      ? import.meta.env.VITE_PAYSTACK_PLAN_MONTHLY as string
+      : import.meta.env.VITE_PAYSTACK_PLAN_ANNUAL as string;
+
+    if (!pubKey || !planCode || !email) return;
+
     setCheckingOut(true);
+
     try {
-      const token = localStorage.getItem('access_token') || '';
-      const deviceId = await window.zoomguru.getDeviceId();
-      const res = await fetch(`${API_URL}/subscription/checkout`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-          'X-Device-ID': deviceId,
-        },
-        body: JSON.stringify({ plan: selectedPlan }),
-      });
-      if (res.status === 401) { onLogout(); return; }
-      if (!res.ok) return;
-      const data = await res.json() as { checkoutUrl: string };
-      await window.zoomguru.openExternal(data.checkoutUrl);
-    } finally {
+      await loadPaystackScript();
+    } catch {
       setCheckingOut(false);
+      return;
     }
+
+    // PaystackPop has no npm package — injected via script tag at runtime
+    const pop = (window as unknown as { PaystackPop: PaystackPopInterface }).PaystackPop;
+
+    pop.setup({
+      key: pubKey,
+      email,
+      plan: planCode,
+      ref: `zg_${Date.now()}`,
+      onClose: () => {
+        setCheckingOut(false);
+      },
+      callback: (response) => {
+        setCheckingOut(false);
+        setVerifying(true);
+        void (async () => {
+          try {
+            const deviceId = await window.zoomguru.getDeviceId();
+            const res = await fetch(`${API_URL}/subscription/verify`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+                'X-Device-ID': deviceId,
+              },
+              body: JSON.stringify({ reference: response.reference }),
+            });
+            if (res.status === 401) { onLogout(); return; }
+            if (!res.ok) return;
+            const statusRes = await fetch(`${API_URL}/subscription/status`, {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                'X-Device-ID': deviceId,
+              },
+            });
+            if (statusRes.ok) {
+              const data = await statusRes.json() as SubData;
+              setSub(data);
+            }
+          } finally {
+            setVerifying(false);
+          }
+        })();
+      },
+    }).openIframe();
   }
 
   function statusBadgeStyle(): CSSProperties {
@@ -101,12 +186,13 @@ export default function Dashboard({ onContinue, onLogout }: DashboardProps) {
     return sub.plan === 'monthly' ? 'Monthly' : 'Annual';
   }
 
-  const isSubscribeDisabled = loadingSub || sub?.status === 'active' || checkingOut;
+  const isSubscribeDisabled = loadingSub || sub?.status === 'active' || checkingOut || verifying;
 
   function subscribeLabel(): string {
     if (loadingSub) return 'Loading…';
     if (sub?.status === 'active') return 'Active subscription';
-    if (checkingOut) return 'Opening…';
+    if (verifying) return 'Verifying…';
+    if (checkingOut) return 'Opening checkout…';
     return 'Subscribe';
   }
 
