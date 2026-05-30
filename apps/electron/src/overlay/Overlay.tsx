@@ -10,7 +10,7 @@ const SESSION_CAP = 40;
 const VAD_THRESHOLD = 0.015;
 const SILENCE_MS = 1500;
 const MIN_SPEECH_MS = 2500;
-const MIN_BLOB_BYTES = 15_000;
+const MIN_BLOB_BYTES = 25_000;
 const MIN_WORDS = 4;
 
 let _deviceId: string | null = null;
