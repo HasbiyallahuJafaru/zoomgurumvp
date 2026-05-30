@@ -3,17 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ZoomGuru — The Invisible Interview AI</title>
-  <meta name="description" content="An invisible AI overlay that streams answers to interview questions in real time. Your interviewer never sees it. Available for macOS and Windows." />
+  <title>ZoomGuru — The Invisible Interview Assistant</title>
+  <meta name="description" content="An invisible overlay that streams answers to interview questions in real time. Your interviewer never sees it. Available for macOS and Windows." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=DM+Mono:wght@300;400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
   <style>
-    /* ─────────────────────────────── RESET ─── */
+    /* RESET */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { scroll-behavior: smooth; }
+    html { scroll-behavior: smooth; overflow-x: hidden; }
 
-    /* ─────────────────────────────── TOKENS ─── */
+    /* TOKENS */
     :root {
       --black:  #080808;
       --ink:    #111111;
@@ -26,7 +26,7 @@
       --mono:   'DM Mono', monospace;
     }
 
-    /* ─────────────────────────────── BASE ─── */
+    /* BASE */
     body {
       background: var(--paper);
       color: var(--ink);
@@ -34,13 +34,14 @@
       font-size: 16px;
       line-height: 1.65;
       overflow-x: hidden;
+      overflow-wrap: break-word;
       -webkit-font-smoothing: antialiased;
     }
 
     a { color: inherit; text-decoration: none; }
     img, svg { display: block; }
 
-    /* ─────────────────────────────── DOODLE BG ─── */
+    /* DOODLE BG */
     #doodle-canvas {
       position: fixed;
       inset: 0;
@@ -51,7 +52,7 @@
       will-change: transform;
     }
 
-    /* ─────────────────────────────── LAYOUT ─── */
+    /* LAYOUT */
     .site { position: relative; z-index: 1; }
 
     .wrap {
@@ -61,8 +62,9 @@
     }
 
     @media (max-width: 900px) { .wrap { padding: 0 24px; } }
+    @media (max-width: 400px) { .wrap { padding: 0 16px; } }
 
-    /* ─────────────────────────────── NAV ─── */
+    /* NAV */
     nav {
       position: fixed;
       top: 0; left: 0; right: 0;
@@ -138,19 +140,23 @@
 
     @media (max-width: 768px) { .nav-links { display: none; } }
 
-    /* ─────────────────────────────── HERO ─── */
+    /* HERO */
     .hero {
       padding: 140px 0 100px;
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .hero > .wrap {
       display: grid;
       grid-template-columns: 1fr 440px;
       gap: 60px;
       align-items: center;
-      border-bottom: 1px solid var(--rule);
-      min-height: 100vh;
+      min-height: calc(100vh - 240px);
     }
 
     @media (max-width: 1000px) {
-      .hero { grid-template-columns: 1fr; min-height: auto; padding: 110px 0 80px; }
+      .hero { padding: 110px 0 80px; }
+      .hero > .wrap { grid-template-columns: 1fr; min-height: auto; }
       .hero-visual { display: none; }
     }
 
@@ -173,6 +179,7 @@
       width: 6px; height: 6px;
       border-radius: 50%;
       background: var(--ink);
+      flex-shrink: 0;
       animation: pulse 2s ease-in-out infinite;
     }
 
@@ -184,7 +191,7 @@
     .hero-hed {
       font-family: var(--serif);
       font-weight: 900;
-      font-size: clamp(56px, 7.5vw, 112px);
+      font-size: clamp(52px, 7.5vw, 112px);
       line-height: 0.93;
       letter-spacing: -3px;
       color: var(--ink);
@@ -288,7 +295,7 @@
       to   { opacity: 1; transform: translateY(0); }
     }
 
-    /* ── Floating mockup ── */
+    /* Floating mockup */
     .hero-visual {
       position: relative;
       opacity: 0;
@@ -397,7 +404,7 @@
 
     @keyframes blink { 50% { opacity: 0; } }
 
-    /* ─────────────────────────────── MARQUEE ─── */
+    /* MARQUEE */
     .marquee-strip {
       border-top: 1px solid var(--rule);
       border-bottom: 1px solid var(--rule);
@@ -441,7 +448,7 @@
       to   { transform: translateX(-50%); }
     }
 
-    /* ─────────────────────────────── STATS ─── */
+    /* STATS */
     .stats {
       padding: 80px 0;
       border-bottom: 1px solid var(--rule);
@@ -483,7 +490,7 @@
       .stat:last-child { border-bottom: none; padding-bottom: 0; }
     }
 
-    /* ─────────────────────────────── SECTION UTIL ─── */
+    /* SECTION UTIL */
     .section-tag {
       font-family: var(--mono);
       font-size: 10px;
@@ -504,7 +511,7 @@
       background: var(--rule);
     }
 
-    /* ─────────────────────────────── HOW IT WORKS ─── */
+    /* HOW IT WORKS */
     .how {
       padding: 120px 0;
       border-bottom: 1px solid var(--rule);
@@ -604,7 +611,7 @@
       letter-spacing: 0.04em;
     }
 
-    /* ─────────────────────────────── FEATURES ─── */
+    /* FEATURES */
     .features {
       padding: 120px 0;
       border-bottom: 1px solid var(--rule);
@@ -639,7 +646,11 @@
       margin-bottom: 28px;
     }
 
-    .feature-icon { font-size: 26px; margin-bottom: 16px; }
+    .feature-icon {
+      margin-bottom: 16px;
+      line-height: 0;
+      color: var(--ink);
+    }
 
     .feature-title {
       font-family: var(--serif);
@@ -670,7 +681,7 @@
       .feature:last-child { border-bottom: none !important; }
     }
 
-    /* ─────────────────────────────── PULL QUOTE ─── */
+    /* PULL QUOTE */
     .pullquote {
       padding: 100px 0;
       border-bottom: 1px solid var(--rule);
@@ -732,7 +743,7 @@
       margin-bottom: 16px;
     }
 
-    /* ─────────────────────────────── PRICING ─── */
+    /* PRICING */
     .pricing {
       padding: 120px 0;
       border-bottom: 1px solid var(--rule);
@@ -855,13 +866,15 @@
     }
 
     .pricing-list li::before {
-      content: '—';
-      font-weight: 700;
-      color: var(--ink);
+      content: '';
+      display: inline-block;
+      width: 16px;
+      height: 1.5px;
+      background: var(--ink);
       flex-shrink: 0;
     }
 
-    .pricing-card + .pricing-card .pricing-list li::before { color: var(--paper); }
+    .pricing-card + .pricing-card .pricing-list li::before { background: var(--paper); }
 
     .btn-price {
       display: inline-flex;
@@ -892,7 +905,7 @@
       color: var(--ink);
     }
 
-    /* ─────────────────────────────── FAQ ─── */
+    /* FAQ */
     .faq {
       padding: 120px 0;
       border-bottom: 1px solid var(--rule);
@@ -954,10 +967,8 @@
       align-items: center;
       justify-content: center;
       flex-shrink: 0;
-      font-size: 16px;
       color: var(--muted);
       transition: transform 0.3s, background 0.2s, border-color 0.2s;
-      line-height: 1;
     }
 
     .faq-item.open .faq-icon {
@@ -982,7 +993,7 @@
       line-height: 1.7;
     }
 
-    /* ─────────────────────────────── FINAL CTA ─── */
+    /* FINAL CTA */
     .final-cta {
       padding: 120px 0;
       border-bottom: 1px solid var(--rule);
@@ -1070,7 +1081,7 @@
 
     .btn-dl-inv.ghost:hover { border-color: var(--paper); }
 
-    /* ─────────────────────────────── FOOTER ─── */
+    /* FOOTER */
     footer {
       padding: 44px 0;
       background: var(--ink);
@@ -1118,7 +1129,7 @@
 
     .footer-links a:hover { color: var(--paper); }
 
-    /* ─────────────────────────────── DOWNLOAD MODAL ─── */
+    /* DOWNLOAD MODAL */
     .dl-overlay {
       position: fixed;
       inset: 0;
@@ -1129,6 +1140,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      padding: 24px;
       opacity: 0;
       pointer-events: none;
       transition: opacity 0.25s;
@@ -1145,7 +1157,7 @@
       border-radius: 4px;
       padding: 48px 52px;
       width: 480px;
-      max-width: calc(100vw - 48px);
+      max-width: 100%;
       transform: translateY(20px) scale(0.97);
       transition: transform 0.3s cubic-bezier(0.22,1,0.36,1);
       box-shadow: 0 40px 100px rgba(0,0,0,0.3);
@@ -1201,7 +1213,7 @@
 
     .dl-option:hover { border-color: var(--ink); background: var(--cream); }
 
-    .dl-option-icon { font-size: 22px; flex-shrink: 0; }
+    .dl-option-icon { flex-shrink: 0; line-height: 0; color: var(--ink); }
 
     .dl-option-name {
       font-family: var(--sans);
@@ -1217,8 +1229,8 @@
 
     .dl-option-arrow {
       margin-left: auto;
-      font-size: 18px;
       color: var(--muted);
+      line-height: 0;
       transition: transform 0.2s;
     }
 
@@ -1240,7 +1252,7 @@
 
     .dl-close:hover { color: var(--ink); }
 
-    /* ─────────────────────────────── HAMBURGER ─── */
+    /* HAMBURGER */
     .nav-hamburger {
       display: none;
       flex-direction: column;
@@ -1269,7 +1281,7 @@
 
     @media (max-width: 768px) { .nav-hamburger { display: flex; } }
 
-    /* ─────────────────────────────── MOBILE MENU ─── */
+    /* MOBILE MENU */
     .mobile-menu {
       position: fixed;
       top: 58px; left: 0; right: 0; bottom: 0;
@@ -1306,16 +1318,13 @@
     .mobile-link:first-child { border-top: 1px solid var(--rule); }
     .mobile-link:active { opacity: 0.4; }
 
-    /* ─────────────────────────────── MOBILE OVERRIDES ─── */
-
-    /* Tighter section padding on phones */
+    /* MOBILE OVERRIDES */
     @media (max-width: 640px) {
       .how, .features, .pullquote, .pricing, .faq { padding: 80px 0; }
       .stats { padding: 56px 0; }
       .final-cta { padding: 80px 0; }
     }
 
-    /* Hero text + buttons */
     @media (max-width: 480px) {
       .hero { padding: 96px 0 64px; }
       .hero-hed { letter-spacing: -1.5px; }
@@ -1323,36 +1332,30 @@
       .hero-downloads .btn-dl { justify-content: center; }
     }
 
-    /* Stats */
     @media (max-width: 480px) {
       .stat-num { font-size: 48px; letter-spacing: -1px; }
     }
 
-    /* How it works — step numbers */
     @media (max-width: 640px) {
       .step-n { font-size: 52px; letter-spacing: -2px; }
       .step { padding: 28px 0; }
     }
 
-    /* How header */
     @media (max-width: 480px) {
       .how-hed { letter-spacing: -1.5px; }
     }
 
-    /* Pull quote */
     @media (max-width: 640px) {
       .pullquote-mark { font-size: 72px; }
       .pullquote-text { font-size: clamp(22px, 5.5vw, 36px); }
     }
 
-    /* Pricing */
     @media (max-width: 480px) {
       .pricing-card { padding: 36px 24px; }
       .pricing-amount { font-size: clamp(40px, 12vw, 64px); letter-spacing: -1.5px; }
       .pricing-badge { display: inline-block; margin-left: 8px; }
     }
 
-    /* Final CTA */
     @media (max-width: 768px) {
       .cta-deco { display: none; }
     }
@@ -1364,7 +1367,6 @@
       .final-cta { padding: 72px 0; }
     }
 
-    /* Footer */
     @media (max-width: 600px) {
       .footer-inner {
         flex-direction: column;
@@ -1373,24 +1375,21 @@
       }
     }
 
-    /* Download modal */
     @media (max-width: 480px) {
       .dl-modal { padding: 36px 24px; }
       .dl-modal-hed { font-size: 24px; }
     }
 
-    /* Marquee strip */
     @media (max-width: 480px) {
       .marquee-item span { letter-spacing: 0.12em; font-size: 10px; }
     }
 
-    /* Ensure tap targets ≥ 44px */
     @media (max-width: 768px) {
       .btn-dl, .btn-dl-inv, .btn-price, .faq-q { min-height: 44px; }
       .dl-option { min-height: 64px; }
     }
 
-    /* ─────────────────────────────── SCROLL REVEAL ─── */
+    /* SCROLL REVEAL */
     .sr {
       opacity: 0;
       transform: translateY(24px);
@@ -1407,57 +1406,47 @@
 </head>
 <body>
 
-<!-- ─── DOODLE BACKGROUND ─── -->
+<!-- DOODLE BACKGROUND -->
 <svg id="doodle-canvas" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
   <defs>
     <pattern id="p" x="0" y="0" width="500" height="500" patternUnits="userSpaceOnUse">
-      <!-- Organic circles -->
       <circle cx="60" cy="60" r="22" fill="none" stroke="#000" stroke-width="1.2"/>
       <circle cx="440" cy="100" r="10" fill="none" stroke="#000" stroke-width="1"/>
       <circle cx="250" cy="250" r="35" fill="none" stroke="#000" stroke-width="1"/>
       <circle cx="400" cy="400" r="16" fill="none" stroke="#000" stroke-width="1.1"/>
       <circle cx="80" cy="430" r="12" fill="none" stroke="#000" stroke-width="0.9"/>
       <circle cx="170" cy="340" r="8" fill="none" stroke="#000" stroke-width="0.8"/>
-      <!-- Wavy hand-drawn lines -->
       <path d="M0 200 Q60 180 120 200 Q180 220 240 200 Q300 180 360 200 Q420 220 500 200" fill="none" stroke="#000" stroke-width="0.9"/>
       <path d="M0 420 Q70 400 140 420 Q210 440 280 420 Q350 400 420 420 Q470 432 500 426" fill="none" stroke="#000" stroke-width="0.7"/>
       <path d="M0 80 Q80 60 160 80 Q240 100 320 80 Q400 60 500 80" fill="none" stroke="#000" stroke-width="0.6"/>
-      <!-- Squiggles -->
       <path d="M20 300 Q32 288 44 300 Q56 312 68 300 Q80 288 92 300" fill="none" stroke="#000" stroke-width="1.1"/>
       <path d="M350 30 Q362 18 374 30 Q386 42 398 30 Q410 18 422 30 Q434 42 446 30" fill="none" stroke="#000" stroke-width="0.9"/>
       <path d="M160 460 Q170 450 180 460 Q190 470 200 460 Q210 450 220 460" fill="none" stroke="#000" stroke-width="0.8"/>
-      <!-- Stars -->
-      <text x="195" y="72" font-size="16" fill="#000" font-family="serif">✦</text>
-      <text x="440" y="250" font-size="12" fill="#000" font-family="serif">✦</text>
-      <text x="90" y="250" font-size="9"  fill="#000" font-family="serif">✶</text>
-      <text x="290" y="460" font-size="11" fill="#000" font-family="serif">✦</text>
-      <text x="460" y="460" font-size="8"  fill="#000" font-family="serif">✶</text>
-      <text x="30"  y="170" font-size="10" fill="#000" font-family="serif">✦</text>
-      <!-- Plus marks -->
+      <text x="195" y="72" font-size="16" fill="#000" font-family="serif">&#x2726;</text>
+      <text x="440" y="250" font-size="12" fill="#000" font-family="serif">&#x2726;</text>
+      <text x="90" y="250" font-size="9"  fill="#000" font-family="serif">&#x2736;</text>
+      <text x="290" y="460" font-size="11" fill="#000" font-family="serif">&#x2726;</text>
+      <text x="460" y="460" font-size="8"  fill="#000" font-family="serif">&#x2736;</text>
+      <text x="30"  y="170" font-size="10" fill="#000" font-family="serif">&#x2726;</text>
       <line x1="230" y1="128" x2="250" y2="128" stroke="#000" stroke-width="1.3"/>
       <line x1="240" y1="118" x2="240" y2="138" stroke="#000" stroke-width="1.3"/>
       <line x1="430" y1="330" x2="448" y2="330" stroke="#000" stroke-width="1.1"/>
       <line x1="439" y1="321" x2="439" y2="339" stroke="#000" stroke-width="1.1"/>
-      <!-- Small triangles -->
       <path d="M150 380 L162 358 L174 380 Z" fill="none" stroke="#000" stroke-width="0.9"/>
       <path d="M330 100 L340 82  L350 100 Z" fill="none" stroke="#000" stroke-width="0.8"/>
-      <!-- Dashed circle -->
       <circle cx="300" cy="360" r="22" fill="none" stroke="#000" stroke-width="0.9" stroke-dasharray="3 4"/>
       <circle cx="120" cy="130" r="14" fill="none" stroke="#000" stroke-width="0.8" stroke-dasharray="2 3"/>
-      <!-- Spiral -->
       <path d="M460 50 Q465 44 470 50 Q477 58 470 66 Q461 74 452 65 Q443 54 454 43 Q465 32 476 43" fill="none" stroke="#000" stroke-width="0.8"/>
       <path d="M40 380 Q44 375 48 380 Q53 386 48 392 Q42 397 36 391" fill="none" stroke="#000" stroke-width="0.8"/>
-      <!-- Bracket -->
       <path d="M210 310 L200 310 L200 345 L210 345" fill="none" stroke="#000" stroke-width="1"/>
       <path d="M330 310 L340 310 L340 345 L330 345" fill="none" stroke="#000" stroke-width="1"/>
-      <!-- Arrow -->
       <path d="M390 170 L412 170 M408 165 L412 170 L408 175" fill="none" stroke="#000" stroke-width="1"/>
     </pattern>
   </defs>
   <rect width="100%" height="100%" fill="url(#p)"/>
 </svg>
 
-<!-- ─── DOWNLOAD MODAL ─── -->
+<!-- DOWNLOAD MODAL -->
 <div class="dl-overlay" id="dlOverlay" role="dialog" aria-modal="true" aria-label="Download ZoomGuru">
   <div class="dl-modal">
     <p class="dl-modal-tag">Download</p>
@@ -1465,29 +1454,40 @@
     <p class="dl-modal-sub">ZoomGuru is available for macOS and Windows. Start your free trial — no credit card required.</p>
     <div class="dl-options">
       <a href="#" class="dl-option" download>
-        <span class="dl-option-icon">🍎</span>
+        <span class="dl-option-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+        </span>
         <div>
           <p class="dl-option-name">Download for macOS</p>
           <p class="dl-option-sub">macOS 12 Monterey or later · Apple Silicon &amp; Intel</p>
         </div>
-        <span class="dl-option-arrow">→</span>
+        <span class="dl-option-arrow">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </span>
       </a>
       <a href="#" class="dl-option" download>
-        <span class="dl-option-icon">⊞</span>
+        <span class="dl-option-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 12V6.75l6-1.32v6.48L3 12zm17-9v8.75l-10 .15V5.21L20 3zM3 13l6 .09v6.81l-6-1.15V13zm17 .25V22l-10-1.91V13.1l10 .15z"/></svg>
+        </span>
         <div>
           <p class="dl-option-name">Download for Windows</p>
-          <p class="dl-option-sub">Windows 10 / 11 · 64-bit</p>
+          <p class="dl-option-sub">Windows 10 / 11 · 64 bit</p>
         </div>
-        <span class="dl-option-arrow">→</span>
+        <span class="dl-option-arrow">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </span>
       </a>
     </div>
-    <button class="dl-close" id="dlClose">✕ &nbsp; Close</button>
+    <button class="dl-close" id="dlClose">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      &nbsp; Close
+    </button>
   </div>
 </div>
 
 <div class="site">
 
-  <!-- ─── NAV ─── -->
+  <!-- NAV -->
   <nav>
     <div class="nav-inner">
       <a href="/" class="nav-logo">Zoom<em>Guru</em></a>
@@ -1504,7 +1504,7 @@
     </div>
   </nav>
 
-  <!-- ─── MOBILE MENU ─── -->
+  <!-- MOBILE MENU -->
   <div class="mobile-menu" id="mobileMenu" aria-hidden="true">
     <div class="mobile-nav">
       <a href="#how"      class="mobile-link">How it works</a>
@@ -1513,19 +1513,19 @@
       <a href="#faq"      class="mobile-link">FAQ</a>
     </div>
     <button class="btn-dl mobile-dl" data-dl style="width:100%;justify-content:center;margin-top:36px;">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M5 20h14v-2H5m14-9h-4V3H9v6H5l7 7 7-7z"/></svg>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 20h14v-2H5m14-9h-4V3H9v6H5l7 7 7-7z"/></svg>
       Download ZoomGuru
     </button>
     <p style="font-family:var(--mono);font-size:11px;color:var(--muted);text-align:center;margin-top:16px;letter-spacing:0.08em;">Free 3-day trial · zoomguru.xyz</p>
   </div>
 
-  <!-- ─── HERO ─── -->
+  <!-- HERO -->
   <section class="hero" id="top">
-    <div class="wrap" style="display:contents;">
-      <div class="wrap" style="grid-column:1; padding-right:0;">
+    <div class="wrap">
+      <div class="hero-copy">
         <p class="hero-eyebrow">
           <span class="hero-eyebrow-dot"></span>
-          AI interview assistant · zoomguru.xyz
+          Interview assistant · zoomguru.xyz
         </p>
         <h1 class="hero-hed">
           <span class="line"><span class="line-inner">The answer</span></span>
@@ -1549,9 +1549,9 @@
             Windows
           </button>
         </div>
-        <p class="hero-fine">Free 3-day trial &nbsp;·&nbsp; Then ₦50,000 / month &nbsp;·&nbsp; Or ₦1,000,000 lifetime</p>
+        <p class="hero-fine">Free 3-day trial &nbsp;·&nbsp; Then &#x20A6;50,000 / month &nbsp;·&nbsp; Or &#x20A6;1,000,000 lifetime</p>
       </div>
-      <div class="hero-visual wrap" style="grid-column:2; padding-left:0;">
+      <div class="hero-visual">
         <div class="mockup-float">
           <div class="mockup">
             <div class="mockup-bar">
@@ -1572,28 +1572,27 @@
     </div>
   </section>
 
-  <!-- ─── MARQUEE ─── -->
+  <!-- MARQUEE -->
   <div class="marquee-strip" aria-hidden="true">
     <div class="marquee-track">
-      <!-- 2× for seamless loop -->
       <div class="marquee-item"><span>The invisible advantage</span><span class="marquee-sep"></span></div>
       <div class="marquee-item"><span>Invisible to Zoom</span><span class="marquee-sep"></span></div>
       <div class="marquee-item"><span>Streams in real time</span><span class="marquee-sep"></span></div>
       <div class="marquee-item"><span>Works on any interview call</span><span class="marquee-sep"></span></div>
       <div class="marquee-item"><span>macOS &amp; Windows</span><span class="marquee-sep"></span></div>
-      <div class="marquee-item"><span>Answer in &lt; 2 seconds</span><span class="marquee-sep"></span></div>
+      <div class="marquee-item"><span>Answer in under 2 seconds</span><span class="marquee-sep"></span></div>
       <div class="marquee-item"><span>No data stored</span><span class="marquee-sep"></span></div>
       <div class="marquee-item"><span>The invisible advantage</span><span class="marquee-sep"></span></div>
       <div class="marquee-item"><span>Invisible to Zoom</span><span class="marquee-sep"></span></div>
       <div class="marquee-item"><span>Streams in real time</span><span class="marquee-sep"></span></div>
       <div class="marquee-item"><span>Works on any interview call</span><span class="marquee-sep"></span></div>
       <div class="marquee-item"><span>macOS &amp; Windows</span><span class="marquee-sep"></span></div>
-      <div class="marquee-item"><span>Answer in &lt; 2 seconds</span><span class="marquee-sep"></span></div>
+      <div class="marquee-item"><span>Answer in under 2 seconds</span><span class="marquee-sep"></span></div>
       <div class="marquee-item"><span>No data stored</span><span class="marquee-sep"></span></div>
     </div>
   </div>
 
-  <!-- ─── STATS ─── -->
+  <!-- STATS -->
   <section class="stats">
     <div class="wrap">
       <div class="stats-grid">
@@ -1613,7 +1612,7 @@
     </div>
   </section>
 
-  <!-- ─── HOW IT WORKS ─── -->
+  <!-- HOW IT WORKS -->
   <section class="how" id="how">
     <div class="wrap">
       <p class="section-tag sr">How it works</p>
@@ -1622,25 +1621,25 @@
           Four steps.<br /><em>One offer.</em>
         </h2>
         <p class="how-sub sr sr-d1">
-          ZoomGuru is built for speed and invisibility. From app launch to streaming answer takes less than four seconds. Here's the entire flow.
+          ZoomGuru is built for speed and invisibility. From app launch to streaming answer takes less than four seconds. Here is the entire flow.
         </p>
       </div>
       <div class="steps">
         <div class="step sr">
           <p class="step-n">01</p>
           <h3 class="step-title">Launch the overlay</h3>
-          <p class="step-body">ZoomGuru opens as a transparent floating window. Screen share software is blind to it — OS-level protection makes it invisible to your interviewer.</p>
+          <p class="step-body">ZoomGuru opens as a transparent floating window. Screen share software is blind to it — OS level protection makes it invisible to your interviewer.</p>
         </div>
         <div class="step sr sr-d1">
           <p class="step-n">02</p>
           <h3 class="step-title">Activate &amp; speak</h3>
-          <p class="step-body">Press the hotkey. Speak the question you just heard. Whisper transcribes it instantly — no typing, no copy-paste, no interruption to your flow.</p>
+          <p class="step-body">Press the hotkey. Speak the question you just heard. Whisper transcribes it instantly — no typing, no copy paste, no interruption to your flow.</p>
           <span class="step-key">Ctrl + Shift + A</span>
         </div>
         <div class="step sr sr-d2">
           <p class="step-n">03</p>
           <h3 class="step-title">Screenshot the problem</h3>
-          <p class="step-body">Coding challenge on screen? Press the screenshot hotkey. ZoomGuru reads the code or diagram with vision AI and streams a full solution.</p>
+          <p class="step-body">Coding challenge on screen? Press the screenshot hotkey. ZoomGuru reads the code or diagram and streams a full solution.</p>
           <span class="step-key">Ctrl + Shift + S</span>
         </div>
         <div class="step sr sr-d3">
@@ -1652,44 +1651,56 @@
     </div>
   </section>
 
-  <!-- ─── FEATURES ─── -->
+  <!-- FEATURES -->
   <section class="features" id="features">
     <div class="wrap">
       <p class="section-tag sr">Features</p>
       <div class="features-grid">
         <div class="feature sr">
           <p class="feature-num">F — 01</p>
-          <p class="feature-icon">👁</p>
-          <h3 class="feature-title">Screen-share invisible</h3>
+          <p class="feature-icon">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </p>
+          <h3 class="feature-title">Invisible to screen share</h3>
           <p class="feature-body">Uses OS content protection APIs. Zoom, Meet, Teams, Webex — all blind to the overlay. Your desktop looks completely normal to the interviewer.</p>
         </div>
         <div class="feature sr sr-d1">
           <p class="feature-num">F — 02</p>
-          <p class="feature-icon">⚡</p>
+          <p class="feature-icon">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          </p>
           <h3 class="feature-title">Streaming answers</h3>
-          <p class="feature-body">Powered by DeepSeek V3 and R1. First word in under two seconds, rest flowing as you speak. No spinners, no loading screens, no silence.</p>
+          <p class="feature-body">Powered by DeepSeek V3 and R1. First word in under two seconds, the rest flowing as you speak. No spinners, no loading screens, no silence.</p>
         </div>
         <div class="feature sr sr-d2">
           <p class="feature-num">F — 03</p>
-          <p class="feature-icon">📸</p>
+          <p class="feature-icon">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          </p>
           <h3 class="feature-title">Screenshot &amp; solve</h3>
           <p class="feature-body">One hotkey captures your screen, the vision model reads the problem, and ZoomGuru streams a full solution — code, explanation, complexity analysis.</p>
         </div>
         <div class="feature sr">
           <p class="feature-num">F — 04</p>
-          <p class="feature-icon">🧠</p>
-          <h3 class="feature-title">Smart model routing</h3>
+          <p class="feature-icon">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>
+          </p>
+          <h3 class="feature-title">Automatic model routing</h3>
           <p class="feature-body">Behavioural questions route to V3. Coding, system design, and maths route to DeepSeek R1. You always get the depth the question demands.</p>
         </div>
         <div class="feature sr sr-d1">
           <p class="feature-num">F — 05</p>
-          <p class="feature-icon">🎙</p>
+          <p class="feature-icon">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+          </p>
           <h3 class="feature-title">Voice transcription</h3>
-          <p class="feature-body">Whisper speech-to-text converts your spoken question with high accuracy. Activate, speak, done — no typing mid-interview.</p>
+          <p class="feature-body">Whisper converts your spoken question to text with high accuracy. Activate, speak, done — no typing during the interview.</p>
         </div>
         <div class="feature sr sr-d2">
           <p class="feature-num">F — 06</p>
-          <p class="feature-icon">🔒</p>
+          <p class="feature-icon">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          </p>
           <h3 class="feature-title">Zero data retention</h3>
           <p class="feature-body">Questions and answers live only in memory for the session duration. Close ZoomGuru and everything is gone. No logs, no history, no training.</p>
         </div>
@@ -1697,26 +1708,26 @@
     </div>
   </section>
 
-  <!-- ─── PULL QUOTE ─── -->
+  <!-- PULL QUOTE -->
   <section class="pullquote">
     <div class="wrap">
       <div class="pullquote-inner sr">
         <div class="pullquote-mark">"</div>
         <div class="pullquote-content">
-          <p class="pullquote-stars">★★★★★</p>
+          <p class="pullquote-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</p>
           <blockquote class="pullquote-text">
-            I had three final-round interviews in one week. ZoomGuru turned every question into an opportunity. I walked out of all three knowing I'd nailed it — and I had.
+            I had three final round interviews in one week. ZoomGuru turned every question into an opportunity. I walked out of all three knowing I had nailed it — and I had.
           </blockquote>
           <div class="pullquote-attr">
             <div class="pullquote-rule"></div>
-            <p class="pullquote-who">Software Engineer — hired at a top-5 tech company, Lagos</p>
+            <p class="pullquote-who">Software Engineer — hired at a top 5 tech company, Lagos</p>
           </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ─── PRICING ─── -->
+  <!-- PRICING -->
   <section class="pricing" id="pricing">
     <div class="wrap">
       <p class="section-tag sr">Pricing</p>
@@ -1725,30 +1736,30 @@
           One price.<br /><em>No limits.</em>
         </h2>
         <p class="pricing-note sr sr-d1">
-          Unlimited questions, unlimited screenshots. Cancel anytime. No usage caps, no per-question fees.
+          Unlimited questions, unlimited screenshots. Cancel anytime. No usage caps, no per question fees.
         </p>
       </div>
       <div class="pricing-cards sr">
         <div class="pricing-card">
           <p class="pricing-plan">Monthly plan</p>
-          <p class="pricing-amount">₦50,000</p>
+          <p class="pricing-amount">&#x20A6;50,000</p>
           <p class="pricing-period">per month &nbsp;·&nbsp; cancel anytime</p>
           <ul class="pricing-list">
             <li>Unlimited voice questions</li>
             <li>Unlimited screenshot solves</li>
-            <li>All AI models included</li>
+            <li>All models included</li>
             <li>Invisible overlay</li>
             <li>macOS &amp; Windows</li>
             <li>3-day free trial</li>
           </ul>
           <button class="btn-price" data-dl>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M5 20h14v-2H5m14-9h-4V3H9v6H5l7 7 7-7z"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 20h14v-2H5m14-9h-4V3H9v6H5l7 7 7-7z"/></svg>
             Download free trial
           </button>
         </div>
         <div class="pricing-card">
           <p class="pricing-plan">Lifetime access <span class="pricing-badge">ONE-TIME</span></p>
-          <p class="pricing-amount">₦1,000,000</p>
+          <p class="pricing-amount">&#x20A6;1,000,000</p>
           <p class="pricing-period">one-time payment &nbsp;·&nbsp; never pay again</p>
           <ul class="pricing-list">
             <li>Everything in Monthly</li>
@@ -1759,7 +1770,7 @@
             <li>3-day free trial</li>
           </ul>
           <button class="btn-price" data-dl>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M5 20h14v-2H5m14-9h-4V3H9v6H5l7 7 7-7z"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 20h14v-2H5m14-9h-4V3H9v6H5l7 7 7-7z"/></svg>
             Download free trial
           </button>
         </div>
@@ -1767,7 +1778,7 @@
     </div>
   </section>
 
-  <!-- ─── FAQ ─── -->
+  <!-- FAQ -->
   <section class="faq" id="faq">
     <div class="wrap">
       <p class="section-tag sr">FAQ</p>
@@ -1777,34 +1788,34 @@
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false">
               <span class="faq-q-text">Can the interviewer actually see the overlay?</span>
-              <span class="faq-icon">+</span>
+              <span class="faq-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
             </button>
             <div class="faq-answer">
-              <p>No. ZoomGuru uses OS-level content protection APIs — the same mechanism that prevents banking apps from being screen-captured. Zoom, Google Meet, Microsoft Teams, and Webex are all blind to it. Your interviewer sees only your normal desktop.</p>
+              <p>No. ZoomGuru uses OS level content protection — the same mechanism that prevents apps from being screen captured. Zoom, Google Meet, Microsoft Teams, and Webex are all blind to it. Your interviewer sees only your normal desktop.</p>
             </div>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false">
               <span class="faq-q-text">Does it work on both macOS and Windows?</span>
-              <span class="faq-icon">+</span>
+              <span class="faq-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
             </button>
             <div class="faq-answer">
-              <p>Yes. ZoomGuru is an Electron desktop app available for macOS (12 Monterey+, Apple Silicon and Intel) and Windows 10/11 64-bit. Download the installer, run it, and you're set up in under a minute.</p>
+              <p>Yes. ZoomGuru is an Electron desktop app available for macOS (12 Monterey+, Apple Silicon and Intel) and Windows 10/11 64 bit. Download the installer, run it, and you are set up in under a minute.</p>
             </div>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false">
               <span class="faq-q-text">How fast are the answers?</span>
-              <span class="faq-icon">+</span>
+              <span class="faq-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
             </button>
             <div class="faq-answer">
-              <p>The first words appear in under two seconds for most questions. From there the answer streams word-by-word — you can start reading and speaking while the rest generates. Screenshot questions take slightly longer due to vision processing.</p>
+              <p>The first words appear in under two seconds for most questions. From there the answer streams word by word — you can start reading and speaking while the rest generates. Screenshot questions take slightly longer due to vision processing.</p>
             </div>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false">
               <span class="faq-q-text">Is my data stored or used for training?</span>
-              <span class="faq-icon">+</span>
+              <span class="faq-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
             </button>
             <div class="faq-answer">
               <p>No. Questions and answers exist only in memory for the duration of your session. When you close ZoomGuru, everything is gone. We do not log questions, store transcripts, or use your data to train any model.</p>
@@ -1813,16 +1824,16 @@
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false">
               <span class="faq-q-text">What types of questions does it handle?</span>
-              <span class="faq-icon">+</span>
+              <span class="faq-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
             </button>
             <div class="faq-answer">
-              <p>Behavioural, situational, technical, system design, coding challenges, and anything on screen. ZoomGuru detects the question type automatically and routes it to the most capable model — DeepSeek V3 for conversation, R1 for code and reasoning.</p>
+              <p>Behavioural, situational, technical, system design, coding challenges, and anything on screen. ZoomGuru detects the question type and routes it to the most capable model — DeepSeek V3 for conversation, R1 for code and reasoning.</p>
             </div>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false">
               <span class="faq-q-text">Can I cancel anytime?</span>
-              <span class="faq-icon">+</span>
+              <span class="faq-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
             </button>
             <div class="faq-answer">
               <p>Yes. Monthly plans cancel immediately with no penalty — access ends at the current period. The lifetime plan is a one-time payment with no recurring charges and no cancellation needed.</p>
@@ -1833,7 +1844,7 @@
     </div>
   </section>
 
-  <!-- ─── FINAL CTA ─── -->
+  <!-- FINAL CTA -->
   <section class="final-cta">
     <div class="wrap">
       <p class="cta-deco" aria-hidden="true">Win.</p>
@@ -1844,11 +1855,11 @@
         </h2>
         <div class="cta-downloads">
           <button class="btn-dl-inv solid" data-dl>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
             Download for Mac
           </button>
           <button class="btn-dl-inv ghost" data-dl>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M3 12V6.75l6-1.32v6.48L3 12zm17-9v8.75l-10 .15V5.21L20 3zM3 13l6 .09v6.81l-6-1.15V13zm17 .25V22l-10-1.91V13.1l10 .15z"/></svg>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 12V6.75l6-1.32v6.48L3 12zm17-9v8.75l-10 .15V5.21L20 3zM3 13l6 .09v6.81l-6-1.15V13zm17 .25V22l-10-1.91V13.1l10 .15z"/></svg>
             Download for Windows
           </button>
         </div>
@@ -1856,12 +1867,12 @@
     </div>
   </section>
 
-  <!-- ─── FOOTER ─── -->
+  <!-- FOOTER -->
   <footer>
     <div class="wrap">
       <div class="footer-inner">
         <span class="footer-logo">Zoom<em>Guru</em></span>
-        <p class="footer-copy">© 2025 ZoomGuru.xyz</p>
+        <p class="footer-copy">&#169; 2025 ZoomGuru.xyz</p>
         <ul class="footer-links">
           <li><a href="#">Privacy</a></li>
           <li><a href="#">Terms</a></li>
@@ -1877,7 +1888,7 @@
 (function () {
   'use strict';
 
-  /* ─── Mouse parallax on doodle ─── */
+  /* Mouse parallax on doodle */
   const doodle = document.getElementById('doodle-canvas');
   let mx = 0, my = 0, cx = 0, cy = 0;
   document.addEventListener('mousemove', e => {
@@ -1891,14 +1902,14 @@
     requestAnimationFrame(raf);
   })();
 
-  /* ─── Scroll reveal ─── */
+  /* Scroll reveal */
   const srEls = document.querySelectorAll('.sr');
   const srObs = new IntersectionObserver(entries => {
     entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); srObs.unobserve(e.target); } });
   }, { threshold: 0.1 });
   srEls.forEach(el => srObs.observe(el));
 
-  /* ─── Stat counters ─── */
+  /* Stat counters */
   const counters = document.querySelectorAll('[data-count]');
   const countObs = new IntersectionObserver(entries => {
     entries.forEach(e => {
@@ -1920,7 +1931,7 @@
   }, { threshold: 0.5 });
   counters.forEach(el => countObs.observe(el));
 
-  /* ─── FAQ accordion ─── */
+  /* FAQ accordion */
   document.querySelectorAll('.faq-q').forEach(btn => {
     btn.addEventListener('click', () => {
       const item = btn.closest('.faq-item');
@@ -1930,9 +1941,9 @@
     });
   });
 
-  /* ─── Hamburger menu ─── */
-  const hamburger   = document.getElementById('hamburger');
-  const mobileMenu  = document.getElementById('mobileMenu');
+  /* Hamburger menu */
+  const hamburger  = document.getElementById('hamburger');
+  const mobileMenu = document.getElementById('mobileMenu');
 
   function openMobileMenu() {
     hamburger.classList.add('open');
@@ -1954,22 +1965,19 @@
     mobileMenu.classList.contains('open') ? closeMobileMenu() : openMobileMenu();
   });
 
-  // Close when a link is tapped
   mobileMenu.querySelectorAll('.mobile-link').forEach(link => {
     link.addEventListener('click', closeMobileMenu);
   });
 
-  // Close mobile menu before opening download modal
   mobileMenu.querySelector('.mobile-dl').addEventListener('click', closeMobileMenu);
 
-  // Close on Escape
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMobileMenu(); });
 
-  /* ─── Download modal ─── */
-  const overlay = document.getElementById('dlOverlay');
+  /* Download modal */
+  const overlay  = document.getElementById('dlOverlay');
   const closeBtn = document.getElementById('dlClose');
 
-  function openModal() { overlay.classList.add('visible'); document.body.style.overflow = 'hidden'; }
+  function openModal()  { overlay.classList.add('visible');    document.body.style.overflow = 'hidden'; }
   function closeModal() { overlay.classList.remove('visible'); document.body.style.overflow = ''; }
 
   document.querySelectorAll('[data-dl]').forEach(el => el.addEventListener('click', openModal));
@@ -1977,7 +1985,7 @@
   overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
-  /* ─── Magnetic button effect ─── */
+  /* Magnetic button effect */
   document.querySelectorAll('.btn-dl, .btn-dl-inv').forEach(btn => {
     btn.addEventListener('mousemove', e => {
       const r = btn.getBoundingClientRect();
@@ -1992,7 +2000,7 @@
     });
   });
 
-  /* ─── Trigger already-visible reveals on load ─── */
+  /* Trigger already-visible reveals on load */
   window.addEventListener('load', () => {
     srEls.forEach(el => {
       if (el.getBoundingClientRect().top < window.innerHeight * 0.92) {
