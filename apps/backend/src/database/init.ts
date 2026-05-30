@@ -40,16 +40,17 @@ export async function initDB(): Promise<void> {
         )
       `);
 
-      await pool.query(`
-        CREATE INDEX IF NOT EXISTS idx_subscriptions_status
-          ON subscriptions(status)
-      `);
-
-      await pool.query(`
-        CREATE INDEX IF NOT EXISTS idx_subscriptions_period_end
-          ON subscriptions(current_period_end)
-          WHERE current_period_end IS NOT NULL
-      `);
+      await Promise.all([
+        pool.query(`
+          CREATE INDEX IF NOT EXISTS idx_subscriptions_status
+            ON subscriptions(status)
+        `),
+        pool.query(`
+          CREATE INDEX IF NOT EXISTS idx_subscriptions_period_end
+            ON subscriptions(current_period_end)
+            WHERE current_period_end IS NOT NULL
+        `),
+      ]);
 
       console.log('✅ ZoomGuru DB ready');
       return;

@@ -27,7 +27,7 @@ export class AuthService {
 
   async register(email: string, name: string, password: string): Promise<LoginResult> {
     const pool = getDB();
-    const passwordHash = await bcrypt.hash(password, 12);
+    const passwordHash = await bcrypt.hash(password, 10);
 
     let user: UserRow;
     try {

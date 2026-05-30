@@ -264,7 +264,7 @@ if (!gotLock) {
     });
 
     ipcMain.handle('capture:audio-source-id', async () => {
-      const sources = await desktopCapturer.getSources({ types: ['screen'] });
+      const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1, height: 1 } });
       return sources[0]?.id ?? '';
     });
 
