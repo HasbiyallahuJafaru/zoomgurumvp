@@ -1,0 +1,2008 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ZoomGuru — The Invisible Interview AI</title>
+  <meta name="description" content="An invisible AI overlay that streams answers to interview questions in real time. Your interviewer never sees it. Available for macOS and Windows." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=DM+Mono:wght@300;400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    /* ─────────────────────────────── RESET ─── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    /* ─────────────────────────────── TOKENS ─── */
+    :root {
+      --black:  #080808;
+      --ink:    #111111;
+      --paper:  #f5f3ee;
+      --cream:  #ede9e0;
+      --rule:   #ccc9be;
+      --muted:  #888074;
+      --serif:  'Playfair Display', Georgia, serif;
+      --sans:   'DM Sans', system-ui, sans-serif;
+      --mono:   'DM Mono', monospace;
+    }
+
+    /* ─────────────────────────────── BASE ─── */
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--sans);
+      font-size: 16px;
+      line-height: 1.65;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    img, svg { display: block; }
+
+    /* ─────────────────────────────── DOODLE BG ─── */
+    #doodle-canvas {
+      position: fixed;
+      inset: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.045;
+      will-change: transform;
+    }
+
+    /* ─────────────────────────────── LAYOUT ─── */
+    .site { position: relative; z-index: 1; }
+
+    .wrap {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 0 48px;
+    }
+
+    @media (max-width: 900px) { .wrap { padding: 0 24px; } }
+
+    /* ─────────────────────────────── NAV ─── */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 200;
+      height: 58px;
+      background: rgba(245,243,238,0.9);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--rule);
+      transition: background 0.3s;
+    }
+
+    .nav-inner {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 0 48px;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    @media (max-width: 900px) { .nav-inner { padding: 0 24px; } }
+
+    .nav-logo {
+      font-family: var(--serif);
+      font-weight: 900;
+      font-size: 20px;
+      letter-spacing: -0.5px;
+    }
+    .nav-logo em { font-style: italic; font-weight: 400; }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: 0.02em;
+      position: relative;
+      transition: color 0.2s;
+    }
+
+    .nav-links a::after {
+      content: '';
+      position: absolute;
+      bottom: -2px; left: 0;
+      width: 0; height: 1px;
+      background: var(--ink);
+      transition: width 0.25s ease;
+    }
+
+    .nav-links a:hover { color: var(--ink); }
+    .nav-links a:hover::after { width: 100%; }
+
+    .nav-dl {
+      background: var(--ink) !important;
+      color: var(--paper) !important;
+      padding: 8px 20px;
+      border-radius: 2px;
+      font-size: 12px !important;
+      font-weight: 600 !important;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .nav-dl::after { display: none !important; }
+    .nav-dl:hover { opacity: 0.8; }
+
+    @media (max-width: 768px) { .nav-links { display: none; } }
+
+    /* ─────────────────────────────── HERO ─── */
+    .hero {
+      padding: 140px 0 100px;
+      display: grid;
+      grid-template-columns: 1fr 440px;
+      gap: 60px;
+      align-items: center;
+      border-bottom: 1px solid var(--rule);
+      min-height: 100vh;
+    }
+
+    @media (max-width: 1000px) {
+      .hero { grid-template-columns: 1fr; min-height: auto; padding: 110px 0 80px; }
+      .hero-visual { display: none; }
+    }
+
+    .hero-eyebrow {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 300;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 32px;
+      opacity: 0;
+      animation: fadeUp 0.7s 0.1s forwards;
+    }
+
+    .hero-eyebrow-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--ink);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.4); opacity: 0.5; }
+    }
+
+    .hero-hed {
+      font-family: var(--serif);
+      font-weight: 900;
+      font-size: clamp(56px, 7.5vw, 112px);
+      line-height: 0.93;
+      letter-spacing: -3px;
+      color: var(--ink);
+      margin-bottom: 32px;
+    }
+
+    .hero-hed .line {
+      display: block;
+      overflow: hidden;
+    }
+
+    .hero-hed .line-inner {
+      display: block;
+      transform: translateY(110%);
+      animation: lineReveal 0.8s cubic-bezier(0.22,1,0.36,1) forwards;
+    }
+
+    .hero-hed .line:nth-child(1) .line-inner { animation-delay: 0.2s; }
+    .hero-hed .line:nth-child(2) .line-inner { animation-delay: 0.35s; }
+    .hero-hed .line:nth-child(3) .line-inner { animation-delay: 0.5s; }
+
+    @keyframes lineReveal {
+      to { transform: translateY(0); }
+    }
+
+    .hero-hed em { font-style: italic; font-weight: 400; }
+
+    .hero-sub {
+      font-size: 17px;
+      color: var(--muted);
+      max-width: 440px;
+      line-height: 1.65;
+      margin-bottom: 48px;
+      opacity: 0;
+      animation: fadeUp 0.7s 0.65s forwards;
+    }
+
+    .hero-downloads {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      opacity: 0;
+      animation: fadeUp 0.7s 0.8s forwards;
+    }
+
+    .btn-dl {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--ink);
+      color: var(--paper);
+      padding: 14px 28px;
+      border: 1.5px solid var(--ink);
+      border-radius: 2px;
+      font-family: var(--sans);
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      transition: background 0.22s, color 0.22s, transform 0.18s;
+      text-decoration: none;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-dl::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: var(--paper);
+      transform: translateX(-101%);
+      transition: transform 0.3s cubic-bezier(0.22,1,0.36,1);
+      z-index: 0;
+    }
+
+    .btn-dl:hover::before { transform: translateX(0); }
+    .btn-dl:hover { color: var(--ink); }
+    .btn-dl > * { position: relative; z-index: 1; }
+
+    .btn-dl.outline {
+      background: transparent;
+      color: var(--ink);
+    }
+
+    .btn-dl.outline::before { background: var(--ink); }
+    .btn-dl.outline:hover { color: var(--paper); }
+
+    .hero-fine {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.06em;
+      opacity: 0;
+      animation: fadeUp 0.7s 0.95s forwards;
+      margin-top: 20px;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(18px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Floating mockup ── */
+    .hero-visual {
+      position: relative;
+      opacity: 0;
+      animation: fadeUp 0.9s 0.6s forwards;
+    }
+
+    .mockup-float {
+      animation: float 6s ease-in-out infinite;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0px) rotate(-1deg); }
+      50%       { transform: translateY(-18px) rotate(0.5deg); }
+    }
+
+    .mockup {
+      background: var(--ink);
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow:
+        0 2px 4px rgba(0,0,0,0.06),
+        0 8px 24px rgba(0,0,0,0.12),
+        0 32px 64px rgba(0,0,0,0.22);
+      border: 1px solid #1e1e1e;
+    }
+
+    .mockup-bar {
+      background: #161616;
+      padding: 11px 16px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      border-bottom: 1px solid #222;
+    }
+
+    .m-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .m-dot:nth-child(1) { background: #ff5f56; }
+    .m-dot:nth-child(2) { background: #febc2e; }
+    .m-dot:nth-child(3) { background: #28c840; }
+
+    .mockup-badge {
+      margin-left: auto;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: #28c840;
+      letter-spacing: 0.08em;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .mockup-badge::before {
+      content: '';
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: #28c840;
+      animation: pulse 1.8s ease-in-out infinite;
+    }
+
+    .mockup-body { padding: 20px 22px 24px; }
+
+    .mockup-tag {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: #555;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+
+    .mockup-question {
+      font-size: 13px;
+      color: #777;
+      font-style: italic;
+      line-height: 1.5;
+      margin-bottom: 18px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid #222;
+    }
+
+    .mockup-answer-tag {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: #444;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .mockup-answer {
+      font-size: 13px;
+      color: #ddd;
+      line-height: 1.7;
+      min-height: 80px;
+    }
+
+    .cursor {
+      display: inline-block;
+      width: 1.5px;
+      height: 14px;
+      background: #fff;
+      margin-left: 1px;
+      vertical-align: middle;
+      animation: blink 1s step-end infinite;
+    }
+
+    @keyframes blink { 50% { opacity: 0; } }
+
+    /* ─────────────────────────────── MARQUEE ─── */
+    .marquee-strip {
+      border-top: 1px solid var(--rule);
+      border-bottom: 1px solid var(--rule);
+      padding: 14px 0;
+      overflow: hidden;
+      background: var(--ink);
+    }
+
+    .marquee-track {
+      display: flex;
+      width: max-content;
+      animation: marquee 28s linear infinite;
+    }
+
+    .marquee-item {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      padding: 0 28px;
+      white-space: nowrap;
+    }
+
+    .marquee-item span {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 300;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(245,243,238,0.6);
+    }
+
+    .marquee-sep {
+      width: 4px; height: 4px;
+      border-radius: 50%;
+      background: rgba(245,243,238,0.25);
+      flex-shrink: 0;
+    }
+
+    @keyframes marquee {
+      from { transform: translateX(0); }
+      to   { transform: translateX(-50%); }
+    }
+
+    /* ─────────────────────────────── STATS ─── */
+    .stats {
+      padding: 80px 0;
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0;
+    }
+
+    .stat {
+      padding: 0 48px 0 0;
+      border-right: 1px solid var(--rule);
+      margin-right: 48px;
+    }
+
+    .stat:last-child { border-right: none; margin-right: 0; }
+
+    .stat-num {
+      font-family: var(--serif);
+      font-size: clamp(48px, 5vw, 72px);
+      font-weight: 900;
+      letter-spacing: -2px;
+      line-height: 1;
+      color: var(--ink);
+      margin-bottom: 8px;
+    }
+
+    .stat-label {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    @media (max-width: 768px) {
+      .stats-grid { grid-template-columns: 1fr; gap: 40px; }
+      .stat { border-right: none; margin-right: 0; padding: 0; border-bottom: 1px solid var(--rule); padding-bottom: 40px; }
+      .stat:last-child { border-bottom: none; padding-bottom: 0; }
+    }
+
+    /* ─────────────────────────────── SECTION UTIL ─── */
+    .section-tag {
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 300;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 56px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .section-tag::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--rule);
+    }
+
+    /* ─────────────────────────────── HOW IT WORKS ─── */
+    .how {
+      padding: 120px 0;
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .how-header {
+      display: grid;
+      grid-template-columns: 1fr 400px;
+      gap: 80px;
+      align-items: end;
+      margin-bottom: 80px;
+    }
+
+    @media (max-width: 900px) {
+      .how-header { grid-template-columns: 1fr; gap: 24px; }
+    }
+
+    .how-hed {
+      font-family: var(--serif);
+      font-size: clamp(40px, 5vw, 68px);
+      font-weight: 900;
+      line-height: 0.96;
+      letter-spacing: -2px;
+      color: var(--ink);
+    }
+
+    .how-hed em { font-style: italic; font-weight: 400; }
+
+    .how-sub {
+      font-size: 15px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0;
+      border-top: 1px solid var(--rule);
+    }
+
+    @media (max-width: 900px) { .steps { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 500px) { .steps { grid-template-columns: 1fr; } }
+
+    .step {
+      padding: 40px 40px 40px 0;
+      border-right: 1px solid var(--rule);
+      position: relative;
+    }
+
+    .step:last-child { border-right: none; }
+
+    @media (max-width: 900px) {
+      .step:nth-child(2) { border-right: none; }
+      .step:nth-child(3) { border-right: 1px solid var(--rule); }
+      .step:nth-child(3), .step:nth-child(4) { border-top: 1px solid var(--rule); }
+    }
+
+    .step-n {
+      font-family: var(--serif);
+      font-size: 80px;
+      font-weight: 900;
+      line-height: 1;
+      color: var(--cream);
+      letter-spacing: -3px;
+      margin-bottom: -8px;
+      user-select: none;
+    }
+
+    .step-title {
+      font-family: var(--serif);
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--ink);
+      margin-bottom: 12px;
+      line-height: 1.2;
+    }
+
+    .step-body {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .step-key {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin-top: 14px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--ink);
+      background: var(--cream);
+      border: 1px solid var(--rule);
+      padding: 4px 9px;
+      border-radius: 3px;
+      letter-spacing: 0.04em;
+    }
+
+    /* ─────────────────────────────── FEATURES ─── */
+    .features {
+      padding: 120px 0;
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-rows: auto auto;
+      gap: 0;
+    }
+
+    .feature {
+      padding: 44px 40px;
+      border-right: 1px solid var(--rule);
+      border-bottom: 1px solid var(--rule);
+      transition: background 0.25s;
+    }
+
+    .feature:hover { background: var(--cream); }
+
+    .feature:nth-child(3n) { border-right: none; }
+    .feature:nth-child(4),
+    .feature:nth-child(5),
+    .feature:nth-child(6) { border-bottom: none; }
+
+    .feature-num {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      margin-bottom: 28px;
+    }
+
+    .feature-icon { font-size: 26px; margin-bottom: 16px; }
+
+    .feature-title {
+      font-family: var(--serif);
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--ink);
+      margin-bottom: 10px;
+      line-height: 1.25;
+    }
+
+    .feature-body {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    @media (max-width: 900px) {
+      .features-grid { grid-template-columns: 1fr 1fr; }
+      .feature:nth-child(3n) { border-right: 1px solid var(--rule); }
+      .feature:nth-child(2n) { border-right: none; }
+      .feature:nth-child(4), .feature:nth-child(5), .feature:nth-child(6) { border-bottom: 1px solid var(--rule); }
+      .feature:nth-child(5), .feature:nth-child(6) { border-bottom: none; }
+    }
+
+    @media (max-width: 540px) {
+      .features-grid { grid-template-columns: 1fr; }
+      .feature { border-right: none !important; border-bottom: 1px solid var(--rule) !important; }
+      .feature:last-child { border-bottom: none !important; }
+    }
+
+    /* ─────────────────────────────── PULL QUOTE ─── */
+    .pullquote {
+      padding: 100px 0;
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .pullquote-inner {
+      display: grid;
+      grid-template-columns: 80px 1fr;
+      gap: 40px;
+      align-items: start;
+    }
+
+    @media (max-width: 768px) { .pullquote-inner { grid-template-columns: 1fr; } }
+
+    .pullquote-mark {
+      font-family: var(--serif);
+      font-size: 120px;
+      line-height: 0.7;
+      color: var(--cream);
+      user-select: none;
+      font-weight: 900;
+    }
+
+    .pullquote-content { padding-top: 8px; }
+
+    .pullquote-text {
+      font-family: var(--serif);
+      font-size: clamp(26px, 3.5vw, 44px);
+      font-weight: 400;
+      font-style: italic;
+      color: var(--ink);
+      line-height: 1.25;
+      margin-bottom: 28px;
+      letter-spacing: -0.5px;
+    }
+
+    .pullquote-attr {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .pullquote-rule {
+      width: 32px; height: 1px;
+      background: var(--ink);
+      flex-shrink: 0;
+    }
+
+    .pullquote-who {
+      font-size: 13px;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+    }
+
+    .pullquote-stars {
+      font-size: 14px;
+      letter-spacing: 3px;
+      color: var(--ink);
+      margin-bottom: 16px;
+    }
+
+    /* ─────────────────────────────── PRICING ─── */
+    .pricing {
+      padding: 120px 0;
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .pricing-header {
+      display: grid;
+      grid-template-columns: 1fr 280px;
+      align-items: end;
+      gap: 40px;
+      margin-bottom: 60px;
+    }
+
+    @media (max-width: 768px) { .pricing-header { grid-template-columns: 1fr; } }
+
+    .pricing-hed {
+      font-family: var(--serif);
+      font-size: clamp(40px, 5vw, 64px);
+      font-weight: 900;
+      letter-spacing: -2px;
+      line-height: 0.96;
+      color: var(--ink);
+    }
+
+    .pricing-hed em { font-style: italic; font-weight: 400; }
+
+    .pricing-note {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .pricing-cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      border: 1.5px solid var(--ink);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    @media (max-width: 640px) { .pricing-cards { grid-template-columns: 1fr; } }
+
+    .pricing-card {
+      padding: 56px 52px;
+      position: relative;
+    }
+
+    .pricing-card + .pricing-card {
+      border-left: 1.5px solid var(--ink);
+      background: var(--ink);
+      color: var(--paper);
+    }
+
+    @media (max-width: 640px) {
+      .pricing-card + .pricing-card { border-left: none; border-top: 1.5px solid var(--ink); }
+    }
+
+    @media (max-width: 900px) { .pricing-card { padding: 40px 32px; } }
+
+    .pricing-plan {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 28px;
+    }
+
+    .pricing-card + .pricing-card .pricing-plan { color: #666; }
+
+    .pricing-badge {
+      display: inline-block;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      padding: 3px 10px;
+      border-radius: 2px;
+      margin-left: 10px;
+      vertical-align: middle;
+    }
+
+    .pricing-amount {
+      font-family: var(--serif);
+      font-size: clamp(44px, 6vw, 76px);
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: -2px;
+      margin-bottom: 4px;
+    }
+
+    .pricing-period {
+      font-size: 14px;
+      color: var(--muted);
+      margin-bottom: 40px;
+    }
+
+    .pricing-card + .pricing-card .pricing-period { color: #777; }
+
+    .pricing-list {
+      list-style: none;
+      margin-bottom: 48px;
+    }
+
+    .pricing-list li {
+      font-size: 14px;
+      color: var(--muted);
+      padding: 11px 0;
+      border-top: 1px solid var(--rule);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .pricing-card + .pricing-card .pricing-list li {
+      color: #999;
+      border-color: #222;
+    }
+
+    .pricing-list li::before {
+      content: '—';
+      font-weight: 700;
+      color: var(--ink);
+      flex-shrink: 0;
+    }
+
+    .pricing-card + .pricing-card .pricing-list li::before { color: var(--paper); }
+
+    .btn-price {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 32px;
+      border-radius: 2px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.22s;
+      border: 1.5px solid var(--ink);
+      background: transparent;
+      color: var(--ink);
+    }
+
+    .btn-price:hover { background: var(--ink); color: var(--paper); }
+
+    .pricing-card + .pricing-card .btn-price {
+      border-color: var(--paper);
+      color: var(--paper);
+    }
+
+    .pricing-card + .pricing-card .btn-price:hover {
+      background: var(--paper);
+      color: var(--ink);
+    }
+
+    /* ─────────────────────────────── FAQ ─── */
+    .faq {
+      padding: 120px 0;
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .faq-inner {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      gap: 100px;
+      align-items: start;
+    }
+
+    @media (max-width: 900px) { .faq-inner { grid-template-columns: 1fr; gap: 48px; } }
+
+    .faq-hed {
+      font-family: var(--serif);
+      font-size: clamp(32px, 3.5vw, 48px);
+      font-weight: 900;
+      letter-spacing: -1px;
+      line-height: 1.05;
+      color: var(--ink);
+      position: sticky;
+      top: 80px;
+    }
+
+    .faq-hed em { font-style: italic; font-weight: 400; }
+
+    .faq-list { flex: 1; }
+
+    .faq-item { border-top: 1px solid var(--rule); }
+    .faq-item:last-child { border-bottom: 1px solid var(--rule); }
+
+    .faq-q {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 20px;
+      width: 100%;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 22px 0;
+      text-align: left;
+    }
+
+    .faq-q-text {
+      font-family: var(--serif);
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--ink);
+      line-height: 1.3;
+    }
+
+    .faq-icon {
+      width: 22px; height: 22px;
+      border: 1.5px solid var(--rule);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 16px;
+      color: var(--muted);
+      transition: transform 0.3s, background 0.2s, border-color 0.2s;
+      line-height: 1;
+    }
+
+    .faq-item.open .faq-icon {
+      transform: rotate(45deg);
+      background: var(--ink);
+      border-color: var(--ink);
+      color: var(--paper);
+    }
+
+    .faq-answer {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.35s ease;
+    }
+
+    .faq-item.open .faq-answer { max-height: 240px; }
+
+    .faq-answer p {
+      padding-bottom: 22px;
+      font-size: 15px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    /* ─────────────────────────────── FINAL CTA ─── */
+    .final-cta {
+      padding: 120px 0;
+      border-bottom: 1px solid var(--rule);
+      background: var(--ink);
+    }
+
+    .final-cta .wrap { position: relative; }
+
+    .cta-deco {
+      font-family: var(--serif);
+      font-size: clamp(100px, 18vw, 220px);
+      font-weight: 900;
+      font-style: italic;
+      color: transparent;
+      -webkit-text-stroke: 1px rgba(255,255,255,0.07);
+      line-height: 0.85;
+      position: absolute;
+      right: 48px;
+      top: 50%;
+      transform: translateY(-50%);
+      pointer-events: none;
+      user-select: none;
+      letter-spacing: -6px;
+    }
+
+    .cta-content { position: relative; z-index: 1; }
+
+    .cta-eyebrow {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(245,243,238,0.4);
+      margin-bottom: 24px;
+    }
+
+    .cta-hed {
+      font-family: var(--serif);
+      font-size: clamp(44px, 6vw, 88px);
+      font-weight: 900;
+      line-height: 0.93;
+      letter-spacing: -2.5px;
+      color: var(--paper);
+      margin-bottom: 48px;
+      max-width: 700px;
+    }
+
+    .cta-hed em { font-style: italic; font-weight: 400; }
+
+    .cta-downloads {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .btn-dl-inv {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 28px;
+      border-radius: 2px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      transition: all 0.22s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-dl-inv.solid {
+      background: var(--paper);
+      color: var(--ink);
+      border: 1.5px solid var(--paper);
+    }
+
+    .btn-dl-inv.solid:hover { background: transparent; color: var(--paper); }
+
+    .btn-dl-inv.ghost {
+      background: transparent;
+      color: var(--paper);
+      border: 1.5px solid rgba(245,243,238,0.3);
+    }
+
+    .btn-dl-inv.ghost:hover { border-color: var(--paper); }
+
+    /* ─────────────────────────────── FOOTER ─── */
+    footer {
+      padding: 44px 0;
+      background: var(--ink);
+      border-top: 1px solid #1e1e1e;
+    }
+
+    .footer-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .footer-logo {
+      font-family: var(--serif);
+      font-weight: 900;
+      font-size: 18px;
+      color: var(--paper);
+    }
+
+    .footer-logo em { font-style: italic; font-weight: 400; }
+
+    .footer-copy {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: rgba(245,243,238,0.35);
+      letter-spacing: 0.06em;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 24px;
+      list-style: none;
+    }
+
+    .footer-links a {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: rgba(245,243,238,0.4);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover { color: var(--paper); }
+
+    /* ─────────────────────────────── DOWNLOAD MODAL ─── */
+    .dl-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(8,8,8,0.7);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      z-index: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s;
+    }
+
+    .dl-overlay.visible {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .dl-modal {
+      background: var(--paper);
+      border: 1px solid var(--rule);
+      border-radius: 4px;
+      padding: 48px 52px;
+      width: 480px;
+      max-width: calc(100vw - 48px);
+      transform: translateY(20px) scale(0.97);
+      transition: transform 0.3s cubic-bezier(0.22,1,0.36,1);
+      box-shadow: 0 40px 100px rgba(0,0,0,0.3);
+    }
+
+    .dl-overlay.visible .dl-modal {
+      transform: translateY(0) scale(1);
+    }
+
+    .dl-modal-tag {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+
+    .dl-modal-hed {
+      font-family: var(--serif);
+      font-size: 28px;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+      color: var(--ink);
+      margin-bottom: 8px;
+    }
+
+    .dl-modal-sub {
+      font-size: 14px;
+      color: var(--muted);
+      margin-bottom: 36px;
+      line-height: 1.5;
+    }
+
+    .dl-options {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 28px;
+    }
+
+    .dl-option {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 16px 20px;
+      border: 1.5px solid var(--rule);
+      border-radius: 3px;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      background: var(--paper);
+    }
+
+    .dl-option:hover { border-color: var(--ink); background: var(--cream); }
+
+    .dl-option-icon { font-size: 22px; flex-shrink: 0; }
+
+    .dl-option-name {
+      font-family: var(--sans);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .dl-option-sub {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .dl-option-arrow {
+      margin-left: auto;
+      font-size: 18px;
+      color: var(--muted);
+      transition: transform 0.2s;
+    }
+
+    .dl-option:hover .dl-option-arrow { transform: translateX(4px); }
+
+    .dl-close {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .dl-close:hover { color: var(--ink); }
+
+    /* ─────────────────────────────── HAMBURGER ─── */
+    .nav-hamburger {
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      gap: 5px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 8px 4px;
+      z-index: 201;
+      flex-shrink: 0;
+    }
+
+    .nav-hamburger span {
+      display: block;
+      width: 22px;
+      height: 1.5px;
+      background: var(--ink);
+      transition: transform 0.3s cubic-bezier(0.22,1,0.36,1), opacity 0.2s;
+      transform-origin: center;
+    }
+
+    .nav-hamburger.open span:nth-child(1) { transform: translateY(6.5px) rotate(45deg); }
+    .nav-hamburger.open span:nth-child(2) { opacity: 0; transform: scaleX(0); }
+    .nav-hamburger.open span:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); }
+
+    @media (max-width: 768px) { .nav-hamburger { display: flex; } }
+
+    /* ─────────────────────────────── MOBILE MENU ─── */
+    .mobile-menu {
+      position: fixed;
+      top: 58px; left: 0; right: 0; bottom: 0;
+      background: var(--paper);
+      z-index: 190;
+      padding: 48px 24px 40px;
+      display: flex;
+      flex-direction: column;
+      transform: translateX(100%);
+      transition: transform 0.4s cubic-bezier(0.22,1,0.36,1);
+      overflow-y: auto;
+    }
+
+    .mobile-menu.open { transform: translateX(0); }
+
+    .mobile-nav {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .mobile-link {
+      font-family: var(--serif);
+      font-size: 40px;
+      font-weight: 900;
+      color: var(--ink);
+      text-decoration: none;
+      padding: 18px 0;
+      border-bottom: 1px solid var(--rule);
+      letter-spacing: -1px;
+      line-height: 1;
+      transition: opacity 0.2s;
+    }
+
+    .mobile-link:first-child { border-top: 1px solid var(--rule); }
+    .mobile-link:active { opacity: 0.4; }
+
+    /* ─────────────────────────────── MOBILE OVERRIDES ─── */
+
+    /* Tighter section padding on phones */
+    @media (max-width: 640px) {
+      .how, .features, .pullquote, .pricing, .faq { padding: 80px 0; }
+      .stats { padding: 56px 0; }
+      .final-cta { padding: 80px 0; }
+    }
+
+    /* Hero text + buttons */
+    @media (max-width: 480px) {
+      .hero { padding: 96px 0 64px; }
+      .hero-hed { letter-spacing: -1.5px; }
+      .hero-downloads { flex-direction: column; align-items: stretch; }
+      .hero-downloads .btn-dl { justify-content: center; }
+    }
+
+    /* Stats */
+    @media (max-width: 480px) {
+      .stat-num { font-size: 48px; letter-spacing: -1px; }
+    }
+
+    /* How it works — step numbers */
+    @media (max-width: 640px) {
+      .step-n { font-size: 52px; letter-spacing: -2px; }
+      .step { padding: 28px 0; }
+    }
+
+    /* How header */
+    @media (max-width: 480px) {
+      .how-hed { letter-spacing: -1.5px; }
+    }
+
+    /* Pull quote */
+    @media (max-width: 640px) {
+      .pullquote-mark { font-size: 72px; }
+      .pullquote-text { font-size: clamp(22px, 5.5vw, 36px); }
+    }
+
+    /* Pricing */
+    @media (max-width: 480px) {
+      .pricing-card { padding: 36px 24px; }
+      .pricing-amount { font-size: clamp(40px, 12vw, 64px); letter-spacing: -1.5px; }
+      .pricing-badge { display: inline-block; margin-left: 8px; }
+    }
+
+    /* Final CTA */
+    @media (max-width: 768px) {
+      .cta-deco { display: none; }
+    }
+
+    @media (max-width: 480px) {
+      .cta-hed { letter-spacing: -1.5px; }
+      .cta-downloads { flex-direction: column; align-items: stretch; }
+      .btn-dl-inv { justify-content: center; }
+      .final-cta { padding: 72px 0; }
+    }
+
+    /* Footer */
+    @media (max-width: 600px) {
+      .footer-inner {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 20px;
+      }
+    }
+
+    /* Download modal */
+    @media (max-width: 480px) {
+      .dl-modal { padding: 36px 24px; }
+      .dl-modal-hed { font-size: 24px; }
+    }
+
+    /* Marquee strip */
+    @media (max-width: 480px) {
+      .marquee-item span { letter-spacing: 0.12em; font-size: 10px; }
+    }
+
+    /* Ensure tap targets ≥ 44px */
+    @media (max-width: 768px) {
+      .btn-dl, .btn-dl-inv, .btn-price, .faq-q { min-height: 44px; }
+      .dl-option { min-height: 64px; }
+    }
+
+    /* ─────────────────────────────── SCROLL REVEAL ─── */
+    .sr {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.65s ease, transform 0.65s ease;
+    }
+
+    .sr.in { opacity: 1; transform: translateY(0); }
+
+    .sr-d1 { transition-delay: 0.08s; }
+    .sr-d2 { transition-delay: 0.16s; }
+    .sr-d3 { transition-delay: 0.24s; }
+    .sr-d4 { transition-delay: 0.32s; }
+  </style>
+</head>
+<body>
+
+<!-- ─── DOODLE BACKGROUND ─── -->
+<svg id="doodle-canvas" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <defs>
+    <pattern id="p" x="0" y="0" width="500" height="500" patternUnits="userSpaceOnUse">
+      <!-- Organic circles -->
+      <circle cx="60" cy="60" r="22" fill="none" stroke="#000" stroke-width="1.2"/>
+      <circle cx="440" cy="100" r="10" fill="none" stroke="#000" stroke-width="1"/>
+      <circle cx="250" cy="250" r="35" fill="none" stroke="#000" stroke-width="1"/>
+      <circle cx="400" cy="400" r="16" fill="none" stroke="#000" stroke-width="1.1"/>
+      <circle cx="80" cy="430" r="12" fill="none" stroke="#000" stroke-width="0.9"/>
+      <circle cx="170" cy="340" r="8" fill="none" stroke="#000" stroke-width="0.8"/>
+      <!-- Wavy hand-drawn lines -->
+      <path d="M0 200 Q60 180 120 200 Q180 220 240 200 Q300 180 360 200 Q420 220 500 200" fill="none" stroke="#000" stroke-width="0.9"/>
+      <path d="M0 420 Q70 400 140 420 Q210 440 280 420 Q350 400 420 420 Q470 432 500 426" fill="none" stroke="#000" stroke-width="0.7"/>
+      <path d="M0 80 Q80 60 160 80 Q240 100 320 80 Q400 60 500 80" fill="none" stroke="#000" stroke-width="0.6"/>
+      <!-- Squiggles -->
+      <path d="M20 300 Q32 288 44 300 Q56 312 68 300 Q80 288 92 300" fill="none" stroke="#000" stroke-width="1.1"/>
+      <path d="M350 30 Q362 18 374 30 Q386 42 398 30 Q410 18 422 30 Q434 42 446 30" fill="none" stroke="#000" stroke-width="0.9"/>
+      <path d="M160 460 Q170 450 180 460 Q190 470 200 460 Q210 450 220 460" fill="none" stroke="#000" stroke-width="0.8"/>
+      <!-- Stars -->
+      <text x="195" y="72" font-size="16" fill="#000" font-family="serif">✦</text>
+      <text x="440" y="250" font-size="12" fill="#000" font-family="serif">✦</text>
+      <text x="90" y="250" font-size="9"  fill="#000" font-family="serif">✶</text>
+      <text x="290" y="460" font-size="11" fill="#000" font-family="serif">✦</text>
+      <text x="460" y="460" font-size="8"  fill="#000" font-family="serif">✶</text>
+      <text x="30"  y="170" font-size="10" fill="#000" font-family="serif">✦</text>
+      <!-- Plus marks -->
+      <line x1="230" y1="128" x2="250" y2="128" stroke="#000" stroke-width="1.3"/>
+      <line x1="240" y1="118" x2="240" y2="138" stroke="#000" stroke-width="1.3"/>
+      <line x1="430" y1="330" x2="448" y2="330" stroke="#000" stroke-width="1.1"/>
+      <line x1="439" y1="321" x2="439" y2="339" stroke="#000" stroke-width="1.1"/>
+      <!-- Small triangles -->
+      <path d="M150 380 L162 358 L174 380 Z" fill="none" stroke="#000" stroke-width="0.9"/>
+      <path d="M330 100 L340 82  L350 100 Z" fill="none" stroke="#000" stroke-width="0.8"/>
+      <!-- Dashed circle -->
+      <circle cx="300" cy="360" r="22" fill="none" stroke="#000" stroke-width="0.9" stroke-dasharray="3 4"/>
+      <circle cx="120" cy="130" r="14" fill="none" stroke="#000" stroke-width="0.8" stroke-dasharray="2 3"/>
+      <!-- Spiral -->
+      <path d="M460 50 Q465 44 470 50 Q477 58 470 66 Q461 74 452 65 Q443 54 454 43 Q465 32 476 43" fill="none" stroke="#000" stroke-width="0.8"/>
+      <path d="M40 380 Q44 375 48 380 Q53 386 48 392 Q42 397 36 391" fill="none" stroke="#000" stroke-width="0.8"/>
+      <!-- Bracket -->
+      <path d="M210 310 L200 310 L200 345 L210 345" fill="none" stroke="#000" stroke-width="1"/>
+      <path d="M330 310 L340 310 L340 345 L330 345" fill="none" stroke="#000" stroke-width="1"/>
+      <!-- Arrow -->
+      <path d="M390 170 L412 170 M408 165 L412 170 L408 175" fill="none" stroke="#000" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="100%" height="100%" fill="url(#p)"/>
+</svg>
+
+<!-- ─── DOWNLOAD MODAL ─── -->
+<div class="dl-overlay" id="dlOverlay" role="dialog" aria-modal="true" aria-label="Download ZoomGuru">
+  <div class="dl-modal">
+    <p class="dl-modal-tag">Download</p>
+    <h2 class="dl-modal-hed">Choose your platform</h2>
+    <p class="dl-modal-sub">ZoomGuru is available for macOS and Windows. Start your free trial — no credit card required.</p>
+    <div class="dl-options">
+      <a href="#" class="dl-option" download>
+        <span class="dl-option-icon">🍎</span>
+        <div>
+          <p class="dl-option-name">Download for macOS</p>
+          <p class="dl-option-sub">macOS 12 Monterey or later · Apple Silicon &amp; Intel</p>
+        </div>
+        <span class="dl-option-arrow">→</span>
+      </a>
+      <a href="#" class="dl-option" download>
+        <span class="dl-option-icon">⊞</span>
+        <div>
+          <p class="dl-option-name">Download for Windows</p>
+          <p class="dl-option-sub">Windows 10 / 11 · 64-bit</p>
+        </div>
+        <span class="dl-option-arrow">→</span>
+      </a>
+    </div>
+    <button class="dl-close" id="dlClose">✕ &nbsp; Close</button>
+  </div>
+</div>
+
+<div class="site">
+
+  <!-- ─── NAV ─── -->
+  <nav>
+    <div class="nav-inner">
+      <a href="/" class="nav-logo">Zoom<em>Guru</em></a>
+      <ul class="nav-links">
+        <li><a href="#how">How it works</a></li>
+        <li><a href="#features">Features</a></li>
+        <li><a href="#pricing">Pricing</a></li>
+        <li><a href="#faq">FAQ</a></li>
+        <li><a href="#" class="nav-dl" data-dl>Download</a></li>
+      </ul>
+      <button class="nav-hamburger" id="hamburger" aria-label="Open menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ─── MOBILE MENU ─── -->
+  <div class="mobile-menu" id="mobileMenu" aria-hidden="true">
+    <div class="mobile-nav">
+      <a href="#how"      class="mobile-link">How it works</a>
+      <a href="#features" class="mobile-link">Features</a>
+      <a href="#pricing"  class="mobile-link">Pricing</a>
+      <a href="#faq"      class="mobile-link">FAQ</a>
+    </div>
+    <button class="btn-dl mobile-dl" data-dl style="width:100%;justify-content:center;margin-top:36px;">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M5 20h14v-2H5m14-9h-4V3H9v6H5l7 7 7-7z"/></svg>
+      Download ZoomGuru
+    </button>
+    <p style="font-family:var(--mono);font-size:11px;color:var(--muted);text-align:center;margin-top:16px;letter-spacing:0.08em;">Free 3-day trial · zoomguru.xyz</p>
+  </div>
+
+  <!-- ─── HERO ─── -->
+  <section class="hero" id="top">
+    <div class="wrap" style="display:contents;">
+      <div class="wrap" style="grid-column:1; padding-right:0;">
+        <p class="hero-eyebrow">
+          <span class="hero-eyebrow-dot"></span>
+          AI interview assistant · zoomguru.xyz
+        </p>
+        <h1 class="hero-hed">
+          <span class="line"><span class="line-inner">The answer</span></span>
+          <span class="line"><span class="line-inner">is already</span></span>
+          <span class="line"><span class="line-inner"><em>on screen.</em></span></span>
+        </h1>
+        <p class="hero-sub">
+          A transparent overlay sits silently over your interview window. It hears the question, reads the screen, and streams the answer — word by word — invisible to screen share software.
+        </p>
+        <div class="hero-downloads">
+          <button class="btn-dl" data-dl>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+            </svg>
+            macOS
+          </button>
+          <button class="btn-dl outline" data-dl>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M3 12V6.75l6-1.32v6.48L3 12zm17-9v8.75l-10 .15V5.21L20 3zM3 13l6 .09v6.81l-6-1.15V13zm17 .25V22l-10-1.91V13.1l10 .15z"/>
+            </svg>
+            Windows
+          </button>
+        </div>
+        <p class="hero-fine">Free 3-day trial &nbsp;·&nbsp; Then ₦50,000 / month &nbsp;·&nbsp; Or ₦1,000,000 lifetime</p>
+      </div>
+      <div class="hero-visual wrap" style="grid-column:2; padding-left:0;">
+        <div class="mockup-float">
+          <div class="mockup">
+            <div class="mockup-bar">
+              <div class="m-dot"></div>
+              <div class="m-dot"></div>
+              <div class="m-dot"></div>
+              <span class="mockup-badge">HIDDEN FROM SHARE</span>
+            </div>
+            <div class="mockup-body">
+              <p class="mockup-tag">Question detected</p>
+              <p class="mockup-question">"Walk me through how you'd design a distributed rate limiter."</p>
+              <p class="mockup-answer-tag">ZoomGuru answer</p>
+              <p class="mockup-answer" id="typewriter">I'd use a token bucket algorithm backed by Redis. Each user gets a bucket with a fixed capacity — say 100 requests per minute. A background process refills tokens at a steady rate.<span class="cursor"></span></p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── MARQUEE ─── -->
+  <div class="marquee-strip" aria-hidden="true">
+    <div class="marquee-track">
+      <!-- 2× for seamless loop -->
+      <div class="marquee-item"><span>The invisible advantage</span><span class="marquee-sep"></span></div>
+      <div class="marquee-item"><span>Invisible to Zoom</span><span class="marquee-sep"></span></div>
+      <div class="marquee-item"><span>Streams in real time</span><span class="marquee-sep"></span></div>
+      <div class="marquee-item"><span>Works on any interview call</span><span class="marquee-sep"></span></div>
+      <div class="marquee-item"><span>macOS &amp; Windows</span><span class="marquee-sep"></span></div>
+      <div class="marquee-item"><span>Answer in &lt; 2 seconds</span><span class="marquee-sep"></span></div>
+      <div class="marquee-item"><span>No data stored</span><span class="marquee-sep"></span></div>
+      <div class="marquee-item"><span>The invisible advantage</span><span class="marquee-sep"></span></div>
+      <div class="marquee-item"><span>Invisible to Zoom</span><span class="marquee-sep"></span></div>
+      <div class="marquee-item"><span>Streams in real time</span><span class="marquee-sep"></span></div>
+      <div class="marquee-item"><span>Works on any interview call</span><span class="marquee-sep"></span></div>
+      <div class="marquee-item"><span>macOS &amp; Windows</span><span class="marquee-sep"></span></div>
+      <div class="marquee-item"><span>Answer in &lt; 2 seconds</span><span class="marquee-sep"></span></div>
+      <div class="marquee-item"><span>No data stored</span><span class="marquee-sep"></span></div>
+    </div>
+  </div>
+
+  <!-- ─── STATS ─── -->
+  <section class="stats">
+    <div class="wrap">
+      <div class="stats-grid">
+        <div class="stat sr">
+          <p class="stat-num" data-count="2000" data-suffix="+">0</p>
+          <p class="stat-label">Interviews aced<br />and counting</p>
+        </div>
+        <div class="stat sr sr-d1">
+          <p class="stat-num" data-count="2" data-suffix="s">&lt;2s</p>
+          <p class="stat-label">Average time to<br />first word on screen</p>
+        </div>
+        <div class="stat sr sr-d2">
+          <p class="stat-num">0%</p>
+          <p class="stat-label">Visible to screen<br />share software</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── HOW IT WORKS ─── -->
+  <section class="how" id="how">
+    <div class="wrap">
+      <p class="section-tag sr">How it works</p>
+      <div class="how-header">
+        <h2 class="how-hed sr">
+          Four steps.<br /><em>One offer.</em>
+        </h2>
+        <p class="how-sub sr sr-d1">
+          ZoomGuru is built for speed and invisibility. From app launch to streaming answer takes less than four seconds. Here's the entire flow.
+        </p>
+      </div>
+      <div class="steps">
+        <div class="step sr">
+          <p class="step-n">01</p>
+          <h3 class="step-title">Launch the overlay</h3>
+          <p class="step-body">ZoomGuru opens as a transparent floating window. Screen share software is blind to it — OS-level protection makes it invisible to your interviewer.</p>
+        </div>
+        <div class="step sr sr-d1">
+          <p class="step-n">02</p>
+          <h3 class="step-title">Activate &amp; speak</h3>
+          <p class="step-body">Press the hotkey. Speak the question you just heard. Whisper transcribes it instantly — no typing, no copy-paste, no interruption to your flow.</p>
+          <span class="step-key">Ctrl + Shift + A</span>
+        </div>
+        <div class="step sr sr-d2">
+          <p class="step-n">03</p>
+          <h3 class="step-title">Screenshot the problem</h3>
+          <p class="step-body">Coding challenge on screen? Press the screenshot hotkey. ZoomGuru reads the code or diagram with vision AI and streams a full solution.</p>
+          <span class="step-key">Ctrl + Shift + S</span>
+        </div>
+        <div class="step sr sr-d3">
+          <p class="step-n">04</p>
+          <h3 class="step-title">Read, speak, win</h3>
+          <p class="step-body">Words stream onto the overlay in under two seconds. Read them naturally as you speak. Your interviewer hears a prepared, confident answer every time.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── FEATURES ─── -->
+  <section class="features" id="features">
+    <div class="wrap">
+      <p class="section-tag sr">Features</p>
+      <div class="features-grid">
+        <div class="feature sr">
+          <p class="feature-num">F — 01</p>
+          <p class="feature-icon">👁</p>
+          <h3 class="feature-title">Screen-share invisible</h3>
+          <p class="feature-body">Uses OS content protection APIs. Zoom, Meet, Teams, Webex — all blind to the overlay. Your desktop looks completely normal to the interviewer.</p>
+        </div>
+        <div class="feature sr sr-d1">
+          <p class="feature-num">F — 02</p>
+          <p class="feature-icon">⚡</p>
+          <h3 class="feature-title">Streaming answers</h3>
+          <p class="feature-body">Powered by DeepSeek V3 and R1. First word in under two seconds, rest flowing as you speak. No spinners, no loading screens, no silence.</p>
+        </div>
+        <div class="feature sr sr-d2">
+          <p class="feature-num">F — 03</p>
+          <p class="feature-icon">📸</p>
+          <h3 class="feature-title">Screenshot &amp; solve</h3>
+          <p class="feature-body">One hotkey captures your screen, the vision model reads the problem, and ZoomGuru streams a full solution — code, explanation, complexity analysis.</p>
+        </div>
+        <div class="feature sr">
+          <p class="feature-num">F — 04</p>
+          <p class="feature-icon">🧠</p>
+          <h3 class="feature-title">Smart model routing</h3>
+          <p class="feature-body">Behavioural questions route to V3. Coding, system design, and maths route to DeepSeek R1. You always get the depth the question demands.</p>
+        </div>
+        <div class="feature sr sr-d1">
+          <p class="feature-num">F — 05</p>
+          <p class="feature-icon">🎙</p>
+          <h3 class="feature-title">Voice transcription</h3>
+          <p class="feature-body">Whisper speech-to-text converts your spoken question with high accuracy. Activate, speak, done — no typing mid-interview.</p>
+        </div>
+        <div class="feature sr sr-d2">
+          <p class="feature-num">F — 06</p>
+          <p class="feature-icon">🔒</p>
+          <h3 class="feature-title">Zero data retention</h3>
+          <p class="feature-body">Questions and answers live only in memory for the session duration. Close ZoomGuru and everything is gone. No logs, no history, no training.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── PULL QUOTE ─── -->
+  <section class="pullquote">
+    <div class="wrap">
+      <div class="pullquote-inner sr">
+        <div class="pullquote-mark">"</div>
+        <div class="pullquote-content">
+          <p class="pullquote-stars">★★★★★</p>
+          <blockquote class="pullquote-text">
+            I had three final-round interviews in one week. ZoomGuru turned every question into an opportunity. I walked out of all three knowing I'd nailed it — and I had.
+          </blockquote>
+          <div class="pullquote-attr">
+            <div class="pullquote-rule"></div>
+            <p class="pullquote-who">Software Engineer — hired at a top-5 tech company, Lagos</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── PRICING ─── -->
+  <section class="pricing" id="pricing">
+    <div class="wrap">
+      <p class="section-tag sr">Pricing</p>
+      <div class="pricing-header">
+        <h2 class="pricing-hed sr">
+          One price.<br /><em>No limits.</em>
+        </h2>
+        <p class="pricing-note sr sr-d1">
+          Unlimited questions, unlimited screenshots. Cancel anytime. No usage caps, no per-question fees.
+        </p>
+      </div>
+      <div class="pricing-cards sr">
+        <div class="pricing-card">
+          <p class="pricing-plan">Monthly plan</p>
+          <p class="pricing-amount">₦50,000</p>
+          <p class="pricing-period">per month &nbsp;·&nbsp; cancel anytime</p>
+          <ul class="pricing-list">
+            <li>Unlimited voice questions</li>
+            <li>Unlimited screenshot solves</li>
+            <li>All AI models included</li>
+            <li>Invisible overlay</li>
+            <li>macOS &amp; Windows</li>
+            <li>3-day free trial</li>
+          </ul>
+          <button class="btn-price" data-dl>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M5 20h14v-2H5m14-9h-4V3H9v6H5l7 7 7-7z"/></svg>
+            Download free trial
+          </button>
+        </div>
+        <div class="pricing-card">
+          <p class="pricing-plan">Lifetime access <span class="pricing-badge">ONE-TIME</span></p>
+          <p class="pricing-amount">₦1,000,000</p>
+          <p class="pricing-period">one-time payment &nbsp;·&nbsp; never pay again</p>
+          <ul class="pricing-list">
+            <li>Everything in Monthly</li>
+            <li>All future updates included</li>
+            <li>Priority model access</li>
+            <li>Dedicated email support</li>
+            <li>Pay once, use forever</li>
+            <li>3-day free trial</li>
+          </ul>
+          <button class="btn-price" data-dl>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M5 20h14v-2H5m14-9h-4V3H9v6H5l7 7 7-7z"/></svg>
+            Download free trial
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── FAQ ─── -->
+  <section class="faq" id="faq">
+    <div class="wrap">
+      <p class="section-tag sr">FAQ</p>
+      <div class="faq-inner">
+        <h2 class="faq-hed sr">Common<br /><em>questions.</em></h2>
+        <div class="faq-list sr sr-d1">
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false">
+              <span class="faq-q-text">Can the interviewer actually see the overlay?</span>
+              <span class="faq-icon">+</span>
+            </button>
+            <div class="faq-answer">
+              <p>No. ZoomGuru uses OS-level content protection APIs — the same mechanism that prevents banking apps from being screen-captured. Zoom, Google Meet, Microsoft Teams, and Webex are all blind to it. Your interviewer sees only your normal desktop.</p>
+            </div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false">
+              <span class="faq-q-text">Does it work on both macOS and Windows?</span>
+              <span class="faq-icon">+</span>
+            </button>
+            <div class="faq-answer">
+              <p>Yes. ZoomGuru is an Electron desktop app available for macOS (12 Monterey+, Apple Silicon and Intel) and Windows 10/11 64-bit. Download the installer, run it, and you're set up in under a minute.</p>
+            </div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false">
+              <span class="faq-q-text">How fast are the answers?</span>
+              <span class="faq-icon">+</span>
+            </button>
+            <div class="faq-answer">
+              <p>The first words appear in under two seconds for most questions. From there the answer streams word-by-word — you can start reading and speaking while the rest generates. Screenshot questions take slightly longer due to vision processing.</p>
+            </div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false">
+              <span class="faq-q-text">Is my data stored or used for training?</span>
+              <span class="faq-icon">+</span>
+            </button>
+            <div class="faq-answer">
+              <p>No. Questions and answers exist only in memory for the duration of your session. When you close ZoomGuru, everything is gone. We do not log questions, store transcripts, or use your data to train any model.</p>
+            </div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false">
+              <span class="faq-q-text">What types of questions does it handle?</span>
+              <span class="faq-icon">+</span>
+            </button>
+            <div class="faq-answer">
+              <p>Behavioural, situational, technical, system design, coding challenges, and anything on screen. ZoomGuru detects the question type automatically and routes it to the most capable model — DeepSeek V3 for conversation, R1 for code and reasoning.</p>
+            </div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false">
+              <span class="faq-q-text">Can I cancel anytime?</span>
+              <span class="faq-icon">+</span>
+            </button>
+            <div class="faq-answer">
+              <p>Yes. Monthly plans cancel immediately with no penalty — access ends at the current period. The lifetime plan is a one-time payment with no recurring charges and no cancellation needed.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── FINAL CTA ─── -->
+  <section class="final-cta">
+    <div class="wrap">
+      <p class="cta-deco" aria-hidden="true">Win.</p>
+      <div class="cta-content sr">
+        <p class="cta-eyebrow">Get started today</p>
+        <h2 class="cta-hed">
+          Your next offer<br /><em>starts now.</em>
+        </h2>
+        <div class="cta-downloads">
+          <button class="btn-dl-inv solid" data-dl>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+            Download for Mac
+          </button>
+          <button class="btn-dl-inv ghost" data-dl>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M3 12V6.75l6-1.32v6.48L3 12zm17-9v8.75l-10 .15V5.21L20 3zM3 13l6 .09v6.81l-6-1.15V13zm17 .25V22l-10-1.91V13.1l10 .15z"/></svg>
+            Download for Windows
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── FOOTER ─── -->
+  <footer>
+    <div class="wrap">
+      <div class="footer-inner">
+        <span class="footer-logo">Zoom<em>Guru</em></span>
+        <p class="footer-copy">© 2025 ZoomGuru.xyz</p>
+        <ul class="footer-links">
+          <li><a href="#">Privacy</a></li>
+          <li><a href="#">Terms</a></li>
+          <li><a href="mailto:support@zoomguru.xyz">Support</a></li>
+        </ul>
+      </div>
+    </div>
+  </footer>
+
+</div><!-- /.site -->
+
+<script>
+(function () {
+  'use strict';
+
+  /* ─── Mouse parallax on doodle ─── */
+  const doodle = document.getElementById('doodle-canvas');
+  let mx = 0, my = 0, cx = 0, cy = 0;
+  document.addEventListener('mousemove', e => {
+    mx = (e.clientX / window.innerWidth  - 0.5) * 18;
+    my = (e.clientY / window.innerHeight - 0.5) * 18;
+  });
+  (function raf() {
+    cx += (mx - cx) * 0.06;
+    cy += (my - cy) * 0.06;
+    doodle.style.transform = `translate(${cx}px, ${cy}px)`;
+    requestAnimationFrame(raf);
+  })();
+
+  /* ─── Scroll reveal ─── */
+  const srEls = document.querySelectorAll('.sr');
+  const srObs = new IntersectionObserver(entries => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); srObs.unobserve(e.target); } });
+  }, { threshold: 0.1 });
+  srEls.forEach(el => srObs.observe(el));
+
+  /* ─── Stat counters ─── */
+  const counters = document.querySelectorAll('[data-count]');
+  const countObs = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (!e.isIntersecting) return;
+      const el = e.target;
+      const target = parseInt(el.dataset.count, 10);
+      const suffix = el.dataset.suffix || '';
+      const dur = 1600;
+      const start = performance.now();
+      const prefix = target === 2 ? '<' : '';
+      (function step(now) {
+        const p = Math.min((now - start) / dur, 1);
+        const ease = 1 - Math.pow(1 - p, 3);
+        el.textContent = prefix + Math.round(ease * target).toLocaleString() + suffix;
+        if (p < 1) requestAnimationFrame(step);
+      })(start);
+      countObs.unobserve(el);
+    });
+  }, { threshold: 0.5 });
+  counters.forEach(el => countObs.observe(el));
+
+  /* ─── FAQ accordion ─── */
+  document.querySelectorAll('.faq-q').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const item = btn.closest('.faq-item');
+      const isOpen = item.classList.contains('open');
+      document.querySelectorAll('.faq-item').forEach(i => { i.classList.remove('open'); i.querySelector('.faq-q').setAttribute('aria-expanded', 'false'); });
+      if (!isOpen) { item.classList.add('open'); btn.setAttribute('aria-expanded', 'true'); }
+    });
+  });
+
+  /* ─── Hamburger menu ─── */
+  const hamburger   = document.getElementById('hamburger');
+  const mobileMenu  = document.getElementById('mobileMenu');
+
+  function openMobileMenu() {
+    hamburger.classList.add('open');
+    hamburger.setAttribute('aria-expanded', 'true');
+    mobileMenu.classList.add('open');
+    mobileMenu.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeMobileMenu() {
+    hamburger.classList.remove('open');
+    hamburger.setAttribute('aria-expanded', 'false');
+    mobileMenu.classList.remove('open');
+    mobileMenu.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+  }
+
+  hamburger.addEventListener('click', () => {
+    mobileMenu.classList.contains('open') ? closeMobileMenu() : openMobileMenu();
+  });
+
+  // Close when a link is tapped
+  mobileMenu.querySelectorAll('.mobile-link').forEach(link => {
+    link.addEventListener('click', closeMobileMenu);
+  });
+
+  // Close mobile menu before opening download modal
+  mobileMenu.querySelector('.mobile-dl').addEventListener('click', closeMobileMenu);
+
+  // Close on Escape
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMobileMenu(); });
+
+  /* ─── Download modal ─── */
+  const overlay = document.getElementById('dlOverlay');
+  const closeBtn = document.getElementById('dlClose');
+
+  function openModal() { overlay.classList.add('visible'); document.body.style.overflow = 'hidden'; }
+  function closeModal() { overlay.classList.remove('visible'); document.body.style.overflow = ''; }
+
+  document.querySelectorAll('[data-dl]').forEach(el => el.addEventListener('click', openModal));
+  closeBtn.addEventListener('click', closeModal);
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+  /* ─── Magnetic button effect ─── */
+  document.querySelectorAll('.btn-dl, .btn-dl-inv').forEach(btn => {
+    btn.addEventListener('mousemove', e => {
+      const r = btn.getBoundingClientRect();
+      const dx = e.clientX - (r.left + r.width  / 2);
+      const dy = e.clientY - (r.top  + r.height / 2);
+      btn.style.transform = `translate(${dx * 0.18}px, ${dy * 0.28}px)`;
+    });
+    btn.addEventListener('mouseleave', () => {
+      btn.style.transform = '';
+      btn.style.transition = 'transform 0.4s cubic-bezier(0.22,1,0.36,1)';
+      setTimeout(() => { btn.style.transition = ''; }, 400);
+    });
+  });
+
+  /* ─── Trigger already-visible reveals on load ─── */
+  window.addEventListener('load', () => {
+    srEls.forEach(el => {
+      if (el.getBoundingClientRect().top < window.innerHeight * 0.92) {
+        el.classList.add('in');
+        srObs.unobserve(el);
+      }
+    });
+  });
+})();
+</script>
+
+</body>
+</html>
